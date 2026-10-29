@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "1000000000000001",
+      "type": "text",
+      "x": -450,
+      "y": 0,
+      "width": 260,
+      "height": 140,
+      "text": "# Servidor WN3 / WRF\n\n- NOMADS / Servidor local\n- Salidas meteorológicas numéricas\n- Formatos NetCDF / GRIB2",
+      "color": "2"
+    },
+    {
+      "id": "1000000000000002",
+      "type": "text",
+      "x": -120,
+      "y": 0,
+      "width": 260,
+      "height": 140,
+      "text": "# Ingesta Automatizada\n\n- `scripts/collect_wn3.py`\n- Descargas atómicas con backoff\n- loop-operator supervisando",
+      "color": "5"
+    },
+    {
+      "id": "1000000000000003",
+      "type": "text",
+      "x": 210,
+      "y": 0,
+      "width": 260,
+      "height": 140,
+      "text": "# Staging & Integridad\n\n- `/mnt/datos/dnieves/WN3/staging`\n- Verificación de cabeceras netcdf\n- Rechazo de archivos corruptos",
+      "color": "3"
+    },
+    {
+      "id": "1000000000000004",
+      "type": "text",
+      "x": 540,
+      "y": 0,
+      "width": 270,
+      "height": 140,
+      "text": "# Raw Storage (Inmutable)\n\n- `/mnt/datos/dnieves/WN3/raw/`\n- Estructura YYYY/MM/corrida\n- Solo lectura post-ingesta",
+      "color": "4"
+    },
+    {
+      "id": "1000000000000005",
+      "type": "text",
+      "x": 210,
+      "y": 220,
+      "width": 260,
+      "height": 140,
+      "text": "# Postprocesamiento & ML\n\n- xarray + Dask + MetPy\n- Corrección de sesgo\n- Downscaling y verificación",
+      "color": "6"
+    },
+    {
+      "id": "1000000000000006",
+      "type": "text",
+      "x": -120,
+      "y": 220,
+      "width": 260,
+      "height": 140,
+      "text": "# Memoria Persistente\n\n- Vault de Obsidian (`vault/`)\n- Diarios de avance en `diarios/`\n- Instrucciones y MOC central",
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "2000000000000001",
+      "fromNode": "1000000000000001",
+      "fromSide": "right",
+      "toNode": "1000000000000002",
+      "toSide": "left"
+    },
+    {
+      "id": "2000000000000002",
+      "fromNode": "1000000000000002",
+      "fromSide": "right",
+      "toNode": "1000000000000003",
+      "toSide": "left"
+    },
+    {
+      "id": "2000000000000003",
+      "fromNode": "1000000000000003",
+      "fromSide": "right",
+      "toNode": "1000000000000004",
+      "toSide": "left"
+    },
+    {
+      "id": "2000000000000004",
+      "fromNode": "1000000000000004",
+      "fromSide": "bottom",
+      "toNode": "1000000000000005",
+      "toSide": "right"
+    },
+    {
+      "id": "2000000000000005",
+      "fromNode": "1000000000000005",
+      "fromSide": "left",
+      "toNode": "1000000000000006",
+      "toSide": "right"
+    }
+  ]
+}

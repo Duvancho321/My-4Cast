@@ -1,0 +1,22 @@
+filters:
+  and:
+    - file.hasTag("my-4cast")
+
+formulas:
+  dias_desde_edicion: '(now() - file.mtime).days'
+  estado_badge: 'if(status == "completed", "✅ Completado", if(status == "active", "🔄 Activo", "📋 Pendiente"))'
+
+views:
+  - type: table
+    name: "Componentes"
+    order:
+      - file.name
+      - formula.estado_badge
+      - tags
+      - file.mtime
+  - type: cards
+    name: "Tarjetas"
+    order:
+      - file.name
+      - title
+      - formula.estado_badge

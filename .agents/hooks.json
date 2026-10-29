@@ -1,0 +1,16 @@
+{
+  "instance-frictionless-guard": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .agents/scripts/auto_allow_guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

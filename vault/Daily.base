@@ -1,0 +1,18 @@
+filters:
+  and:
+    - file.hasTag("daily")
+
+formulas:
+  dias_antiguedad: '(now() - file.ctime).days'
+  palabras: '(file.size / 5).round(0)'
+
+views:
+  - type: table
+    name: "Recientes"
+    limit: 30
+    order:
+      - file.name
+      - date
+      - status
+      - formula.palabras
+      - file.mtime

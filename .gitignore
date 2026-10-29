@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Jupyter & checkpoints
+.ipynb_checkpoints
+
+# Datos locales masivos y temporales
+*.tmp
+*.nc
+*.grib
+*.grib2
+*.zarr
+data/
+downloads/
+staging/
+
+# Entornos y OS
+.DS_Store
+*.swp
+*~
