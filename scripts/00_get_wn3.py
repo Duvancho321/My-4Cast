@@ -1,57 +1,47 @@
 """
-00_get_wn3.py — Descarga de pronósticos WeatherNext 3 para Colombia en Zarr.
+00_get_wn3.py — Ingesta operativa parametrizada de WeatherNext 3 para Colombia.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.2"
+__version__: "0.1.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Soporte para horizonte 360h y selección de variables.
+    - [2026-10-29][Duvan]: Ingesta con parámetros CLI y validación anti-duplicados.
 """
 
-from sys import argv
-from os.path import exists
-from shutil import rmtree
-from numpy import timedelta64
-from obstore.store import GCSStore
-from zarr.storage import ObjectStore
-from xarray import Dataset, open_zarr
+from sys import exit, path
+from argparse import ArgumentParser
+from datetime import datetime, timezone
 
-#%% CONFIGURACIÓN
-run_id      = argv[1] if len(argv) > 1 else '20260826_00hr_01_preds'
-n_horas     = int(argv[2]) if len(argv) > 2 else 360
-tipo_vars   = argv[3] if len(argv) > 3 else 'precipitation'
-bucket_name = 'weathernext3_statistics_spatial'
-prefix_run  = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{run_id}/predictions.zarr'
-lat_min     = -5.0
-lat_max     = 16.5
-lon_min     = 275.0  # -85.0° a convención 0-360
-lon_max     = 300.0  # -60.0° a convención 0-360
-ruta_zarr   = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
-ruta_tmp    = f'/mnt/datos/dnieves/WN3/staging/{run_id}.zarr'
+path.insert(0, '/home/dnieves/Documentos/My-4Cast')
+from src.descarga import apilar_corrida_zarr, descargar_corrida_wn3, verificar_corrida_local
 
-#%% EXTRACCIÓN Y RECORTE
-ds_remote = open_zarr(ObjectStore(GCSStore(bucket=bucket_name, prefix=prefix_run)))
-vars_desc = list(ds_remote.data_vars) if tipo_vars == 'all' else [v for v in ds_remote.data_vars if 'precipitation' in v]
+#%% CONFIGURACIÓN DE PARÁMETROS
+parser = ArgumentParser(description='Ingesta de corridas WeatherNext 3 para Colombia')
+parser.add_argument('--fecha', type=str, default=datetime.now(timezone.utc).strftime('%Y%m%d'),
+                    help='Fecha de la corrida (YYYYMMDD o YYYY-MM-DD)')
+parser.add_argument('--hora', type=str, default='06', choices=['00', '06', '12', '18'],
+                    help='Hora sinóptica UTC de inicialización (00, 06, 12, 18)')
+parser.add_argument('--forzar', action='store_true',
+                    help='Fuerza la descarga e ignora la verificación local')
+args = parser.parse_args()
 
-recorte = ds_remote[vars_desc].sel(
-    lat_0p1=slice(lat_min, lat_max),
-    lon_0p1=slice(lon_min, lon_max),
-    lead_time=slice(timedelta64(1, 'h'), timedelta64(n_horas, 'h'))
-)
+fecha_limpia = args.fecha.replace('-', '')
+fecha_iso    = f'{fecha_limpia[:4]}-{fecha_limpia[4:6]}-{fecha_limpia[6:8]}'
+hora_str     = args.hora.zfill(2)
+run_id       = f'{fecha_limpia}_{hora_str}hr_01_preds'
+init_time    = f'{fecha_iso}T{hora_str}:00:00'
+ruta_zarr    = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
+ruta_tmp     = f'/mnt/datos/dnieves/WN3/staging/tmp_{run_id}.zarr'
 
-if any('0p05' in str(v.dims) for v in recorte.data_vars.values()):
-    recorte = recorte.sel(lat_0p05=slice(lat_min, lat_max), lon_0p05=slice(lon_min, lon_max))
+#%% VERIFICACIÓN E INGESTA
+if not args.forzar and verificar_corrida_local(ruta_zarr, init_time):
+    print(f'Corrida {init_time} ya existe en el Zarr local. Omitiendo descarga.')
+    exit(0)
 
-ds_col = recorte.expand_dims('init_time').load()
-
-#%% PERSISTENCIA ATÓMICA
-rmtree(ruta_tmp, ignore_errors=True)
-ds_col.to_zarr(ruta_tmp, mode='w')
-
-if exists(ruta_zarr):
-    rmtree(ruta_zarr, ignore_errors=True)
-ds_col.to_zarr(ruta_zarr, mode='w')
-rmtree(ruta_tmp, ignore_errors=True)
+print(f'Descargando corrida {run_id} ({init_time})...')
+ds_corrida = descargar_corrida_wn3(run_id, lead_horas=360)
+apilar_corrida_zarr(ds_corrida, ruta_zarr, ruta_tmp)
+print(f'Corrida {run_id} integrada exitosamente en {ruta_zarr}.')
