@@ -12,6 +12,8 @@ __changues__:
 """
 
 from sys import path
+path.insert(0, '/home/dnieves/Documentos/My-4Cast')
+
 from pathlib import Path
 from xarray import open_zarr
 from numpy import timedelta64
@@ -19,8 +21,6 @@ from cartopy.crs import PlateCarree
 from src.paletas import CMAP_PPT, NORM_PPT
 from matplotlib.pyplot import close, figure
 from cartopy.feature import BORDERS, NaturalEarthFeature
-
-path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 from src.animacion import cuadro_desde_figura, escribir_mp4
 
 #%% CONFIGURACIÓN DE PARÁMETROS
