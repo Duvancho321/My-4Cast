@@ -92,6 +92,8 @@ def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
     None
     """
     rmtree(ruta_tmp, ignore_errors=True)
+    ds_nueva['init_time'].encoding['units'] = 'hours since 2026-10-22 00:00:00'
+    ds_nueva['init_time'].encoding['dtype'] = 'int64'
     ds_nueva.to_zarr(ruta_tmp, mode='w')
     if not exists(ruta_zarr):
         ds_nueva.to_zarr(ruta_zarr, mode='w')
