@@ -18,6 +18,11 @@
   - Toda afirmación respaldada por evidencia numérica o física explícita.
 - **loop-operator activo**:
   - Supervisión de ejecuciones continuas y tareas batch. Detención ante fallos repetidos o estancamiento.
+- **Protocolo de Ejecución en GNU Screen**:
+  - Para tareas en segundo plano o procesos largos, crear sesiones dedicadas con `screen -dmS <nombre> bash -c '<comando> > <log> 2>&1'`.
+  - Monitorear siempre a través de su archivo de log correspondiente.
+  - Registrar y controlar el nombre de la sesión para evitar acumulaciones o duplicados.
+  - Cerrar/destruir explícitamente el `screen` al concluir la tarea (`screen -XS <nombre> quit` o permitir salida natural).
 
 ## 3. Política de Seguridad y Permisos
 - Auto-aprobación activa para lecturas, inspecciones, scripts de documentación `.md`, `.canvas`, `.base` y trabajo local en `My-4Cast` y `WN3`.

@@ -14,3 +14,4 @@ Desarrollar y operar el pipeline de pronósticos meteorológicos de alta resoluc
 - Seguir fielmente `python-style` v2.5.0.
 - Seguir fielmente `real-sci-write` (prioridad: Fidelidad > Arquitectura > Consistencia > Claridad > Naturalidad).
 - Aplicar `loop-operator` ante cualquier tarea iterativa de larga duración.
+- **Protocolo GNU Screen**: Ejecutar procesos en segundo plano bajo sesiones `screen -dmS <nombre>` con redirección a log, monitorear activamente y cerrar la sesión al finalizar.
