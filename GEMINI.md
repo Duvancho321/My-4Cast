@@ -2,7 +2,8 @@
 
 ## 1. Entorno de Trabajo
 - **Directorio de Código**: `/home/dnieves/Documentos/My-4Cast` (producción y desarrollo operan en este mismo path).
-- **Almacén Base de Datos**: `/mnt/datos/dnieves/WN3` (datos crudos protegidos, subcarpetas `raw/`, `processed/`, etc.).
+- **Almacén Base de Datos y Productos**: `/mnt/datos/dnieves/WN3` (datos crudos protegidos `raw/`, procesados `processed/`, figuras `figures/`, animaciones `animations/`, staging `staging/`).
+- **Política de Archivos de Salida**: Todas las figuras (`.png`, `.pdf`) y videos (`.mp4`) se guardan estrictamente en `/mnt/datos/dnieves/WN3/figures/` y `/mnt/datos/dnieves/WN3/animations/`. Prohibido dejarlos en el `home` o rastrearlos en Git.
 - **Vault de Documentación**: `vault/` (gestión de conocimiento persistente con Obsidian).
 
 ## 2. Roles y Estilos Mandatorios
