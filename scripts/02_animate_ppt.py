@@ -56,7 +56,7 @@ im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT,
                         transform=PlateCarree())
 titulo  = ax.set_title(f'Válido: {init_str} (+01h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
                        loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
-ax.text(0.97, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
+ax.text(0.985, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
         ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
         bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
 

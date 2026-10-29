@@ -60,7 +60,7 @@ im = ax.pcolormesh(lon_cor, lat_cor, ppt, cmap=CMAP_PPT, norm=NORM_PPT,
 ax.set_extent([-80, -66, -4.5, 13.5], crs=PlateCarree())
 ax.set_title(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
              loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
-ax.text(0.97, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
+ax.text(0.985, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
         ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
         bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
 
