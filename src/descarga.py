@@ -48,6 +48,28 @@ def verificar_corrida_local(ruta_zarr, init_time):
     return datetime64(init_time) in ds_local['init_time'].values
 
 
+def existe_en_gcs(run_id):
+    """
+    Verifica si una corrida existe publicada en Google Cloud Storage.
+
+    Parameters
+    ----------
+    run_id : str
+        Identificador de la corrida (ej. '20261029_12hr_01_preds').
+
+    Returns
+    -------
+    bool
+        True si la corrida existe en GCS, False en caso contrario.
+    """
+    prefix_run = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{run_id}/predictions.zarr'
+    try:
+        open_zarr(ObjectStore(GCSStore(bucket=bucket_wn3, prefix=prefix_run)))
+        return True
+    except Exception:
+        return False
+
+
 def descargar_corrida_wn3(run_id, lead_horas=360):
     """
     Descarga y recorta una corrida de WeatherNext 3 desde Google Cloud Storage.
