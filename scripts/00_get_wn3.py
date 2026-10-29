@@ -1,5 +1,5 @@
 """
-Recolector de pronósticos WeatherNext 3 para Colombia en Zarr.
+00_get_wn3.py — Descarga de pronósticos WeatherNext 3 para Colombia en Zarr.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
@@ -8,7 +8,7 @@ __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Version inicial de ingesta Zarr para Colombia.
+    - [2026-10-29][Duvan]: Renombrado a 00_get_wn3.py e ingesta Zarr.
 """
 
 from sys import argv
