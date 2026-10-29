@@ -22,7 +22,7 @@ from cartopy.feature import BORDERS, COASTLINE
 #%% PARÁMETROS
 hora_idx  = int(argv[1]) if len(argv) > 1 else 12
 ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
-ruta_png  = 'figures/piloto_ppt_colombia.png'
+ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
 vmax_ppt  = 15.0
 
 #%% CARGA Y TRANSFORMACIÓN

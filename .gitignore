@@ -17,6 +17,9 @@ venv/
 *.grib
 *.grib2
 *.zarr
+*.mp4
+*.png
+figures/
 data/
 downloads/
 staging/
