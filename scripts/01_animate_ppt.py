@@ -24,7 +24,7 @@ from cartopy.feature import BORDERS, NaturalEarthFeature
 from src.animacion import cuadro_desde_figura, escribir_mp4
 
 #%% CONFIGURACIÓN DE PARÁMETROS
-fps_video = 6
+fps_video = 3
 hora_fig  = 12
 ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
@@ -42,7 +42,7 @@ init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
-fig = figure(figsize=(8.2, 7.2))
+fig = figure(figsize=(8.0, 7.2), dpi=300)
 gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.06)
 ax  = fig.add_subplot(gs[0, 0], projection=PlateCarree())
 cax = fig.add_subplot(gs[0, 1])

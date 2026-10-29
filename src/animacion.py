@@ -18,6 +18,6 @@ from imageio import get_writer
 cuadro_desde_figura = lambda fig: (fig.canvas.draw(), asarray(fig.canvas.buffer_rgba())[:, :, :3].copy())[1]
 
 
-def escribir_mp4(cuadros, ruta, fps=5):
-    with get_writer(ruta, fps=fps) as escritor:
+def escribir_mp4(cuadros, ruta, fps=3):
+    with get_writer(ruta, fps=fps, quality=8, macro_block_size=16) as escritor:
         [escritor.append_data(cuadro) for cuadro in cuadros]
