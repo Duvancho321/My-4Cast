@@ -66,3 +66,26 @@ Para la ingesta periódica de Colombia (24h a 48h de horizonte), se recomienda a
 5. **Estado Sinóptico**: `mean_sea_level_pressure`, `total_cloud_cover`.
 
 Este conjunto balancea completitud física para modelación meteorológica y dispersión de contaminantes con un almacenamiento ultraligero (~25 MB por archivo diario comprimido).
+
+
+---
+
+## 4. Variables Atmosféricas en la Vertical (3D Pressure Levels)
+
+WeatherNext 3 **sí incluye perfiles en la vertical**, pero están alojados en el bucket del ensamble completo:
+👉 `gs://weathernext3_spatial/weathernext_3_0_0/zarr/`
+
+> [!important] Diferencia entre los dos Buckets
+> - **`gs://weathernext3_statistics_spatial` (El que usamos actualmente)**: Contiene **únicamente variables de superficie (2D)** a alta resolución (5 km y 10 km). Su gran ventaja es que **Requester Pays está DESACTIVADO** (100% gratuito sin facturación).
+> - **`gs://weathernext3_spatial` (Ensamble completo 3D)**: Contiene la atmósfera tridimensional en **13 niveles de presión** y los 64 miembros individuales. Opera con **Requester Pays ACTIVADO** (requiere Billing Account en GCP).
+
+### Niveles de Presión Disponibles (13 niveles estándar):
+$$1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50 \text{ hPa}$$
+
+### Variables Físicas 3D en cada Nivel:
+1. **Geopotencial / Altura Geopotencial** ($\Phi$, $\text{m}^2 \text{s}^{-2}$ o $\text{m}$): Clave para identificación de dorsales, vaguadas y altura de geopotencial (ej. 500 hPa).
+2. **Temperatura del Aire** ($T$, $\text{K}$): Perfiles térmicos verticales, estabilidad y capas de inversión térmica.
+3. **Humedad Específica** ($q$, $\text{kg kg}^{-1}$): Contenido de vapor de agua en la troposfera baja y media.
+4. **Viento Zonal** ($u$, $\text{m s}^{-1}$): Componente este-oeste en altura.
+5. **Viento Meridional** ($v$, $\text{m s}^{-1}$): Componente norte-sur en altura.
+6. **Velocidad Vertical** ($w$ o $\omega$, $\text{Pa s}^{-1}$): Ascensos/descensos dinámicos y forzamiento convectivo.
