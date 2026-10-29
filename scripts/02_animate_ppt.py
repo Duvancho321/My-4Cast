@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.7"
+__version__: "0.0.8"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Encabezado limpio y texto inferior centrado multilínea.
+    - [2026-10-29][Duvan]: Dominio ampliado con San Andres, Caribe y Pacifico.
 """
 
 from sys import path as ruta_sys
@@ -19,7 +19,7 @@ from numpy import timedelta64
 from cartopy.crs import PlateCarree
 from matplotlib.pyplot import close, figure
 from src.paletas import CMAP_PPT, NORM_PPT
-from cartopy.feature import BORDERS, COASTLINE, NaturalEarthFeature
+from cartopy.feature import BORDERS, NaturalEarthFeature
 from src.animacion import cuadro_desde_figura, escribir_mp4
 
 #%% PARÁMETROS
@@ -36,6 +36,7 @@ init_ts   = ds.init_time.values[0] - timedelta64(5, 'h')
 init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 
 #%% CONFIGURACIÓN DE FIGURA
+costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
 fig = figure(figsize=(7, 8))
@@ -46,10 +47,10 @@ cax = fig.add_subplot(gs[0, 1])
 [spine.set_visible(False) for spine in ax.spines.values()]
 ax.gridlines(draw_labels={'bottom': True, 'left': True},
              linewidth=0.5, color='gray', alpha=0.3, linestyle='--')
-ax.add_feature(COASTLINE, linewidth=0.9, edgecolor='#222222')
+ax.add_feature(costas, linewidth=0.9, edgecolor='#222222')
 ax.add_feature(BORDERS, linewidth=0.8, edgecolor='#444444')
 ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
-ax.set_extent([-80, -66, -4.5, 13.5], crs=PlateCarree())
+ax.set_extent([-85, -66, -5.0, 16.5], crs=PlateCarree())
 
 ppt_ini = ds['total_precipitation_1hr_p50'].isel(init_time=0, lead_time=0).values * 1000
 im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT,

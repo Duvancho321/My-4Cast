@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.8"
+__version__: "0.0.9"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Título superior sin redundancia y texto inferior centrado.
+    - [2026-10-29][Duvan]: Dominio ampliado con San Andres, Caribe y Pacifico.
 """
 
 from sys import argv
@@ -20,7 +20,7 @@ from numpy import timedelta64
 from cartopy.crs import PlateCarree
 from matplotlib.pyplot import figure
 from src.paletas import CMAP_PPT, NORM_PPT
-from cartopy.feature import BORDERS, COASTLINE, NaturalEarthFeature
+from cartopy.feature import BORDERS, NaturalEarthFeature
 
 #%% PARÁMETROS
 hora_idx  = int(argv[1]) if len(argv) > 1 else 12
@@ -40,6 +40,7 @@ lon_cor   = ds.lon_0p1 - 360
 lat_cor   = ds.lat_0p1
 
 #%% CONFIGURACIÓN GRÁFICA
+costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
 fig = figure(figsize=(7, 8))
@@ -50,14 +51,14 @@ cax = fig.add_subplot(gs[0, 1])
 [spine.set_visible(False) for spine in ax.spines.values()]
 ax.gridlines(draw_labels={'bottom': True, 'left': True},
              linewidth=0.5, color='gray', alpha=0.3, linestyle='--')
-ax.add_feature(COASTLINE, linewidth=0.9, edgecolor='#222222')
+ax.add_feature(costas, linewidth=0.9, edgecolor='#222222')
 ax.add_feature(BORDERS, linewidth=0.8, edgecolor='#444444')
 ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
 
 #%% RENDERIZADO
 im = ax.pcolormesh(lon_cor, lat_cor, ppt, cmap=CMAP_PPT, norm=NORM_PPT,
                    transform=PlateCarree())
-ax.set_extent([-80, -66, -4.5, 13.5], crs=PlateCarree())
+ax.set_extent([-85, -66, -5.0, 16.5], crs=PlateCarree())
 ax.set_title(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
              loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
 ax.text(0.985, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
