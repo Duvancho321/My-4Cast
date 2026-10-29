@@ -1,44 +1,57 @@
 ---
-title: Recolección y Almacenamiento WN3
-tags: [my-4cast, wn3, datos, recoleccion]
+title: Recolección y Acceso WeatherNext 3 (WN3)
+tags: [my-4cast, wn3, weathernext, deepmind, zarr]
 status: active
 created: 2026-10-28
 ---
 
-# 📥 My-4Cast — Recolección y Almacenamiento WN3
+# 📥 My-4Cast — Recolección y Acceso a Google WeatherNext 3 (WN3)
 
-## 1. Visión General
-El pipeline de recolección tiene como misión asegurar la ingesta periódica y robusta de las salidas del modelo meteorológico WN3 hacia el almacenamiento local persistente en `/mnt/datos/dnieves/WN3`.
+## 1. Visión General y Acceso Aprobado
+El acceso a los datasets de **WeatherNext 3 (WN3)** de **Google DeepMind & Google Research** ha sido aprobado formalmente para la cuenta `dnieves@unal.edu.co`.
 
-> [!important] Inmutabilidad de Datos Crudos
-> Una vez que un archivo NetCDF/GRIB2 entra a `raw/`, queda marcado como de solo lectura. Ningún script de postprocesamiento o análisis debe modificar o sobreescribir datos en esta carpeta.
+WeatherNext 3 representa el estado del arte en pronóstico meteorológico numérico basado en Inteligencia Artificial:
+- **Frecuencia**: Inicializaciones y pronósticos globales actualizados **cada hora**.
+- **Resolución**: ~5 km en variables de superficie y ~10 km en variables de niveles de presión.
+- **Formato**: Formato Zarr optimizado para la nube (*Analysis-Ready, Cloud-Optimized*).
+- **Almacenamiento remoto**: Google Cloud Storage (GCS).
 
 ---
 
-## 2. Estructura de Directorios en Almacenamiento
-Ruta base: `/mnt/datos/dnieves/WN3`
+## 2. Repositorios Remotos en Google Cloud Storage
+- **Bucket Espacial Principal**:
+  `gs://weathernext3_spatial/weathernext_3_0_0/zarr/`
+- **Bucket de Estadísticas y Ensamble**:
+  `gs://weathernext3_statistics_spatial/weathernext_3_0_0_statistics/zarr/`
+- **Modalidad de Facturación**: *Requester Pays* (requiere especificar el ID de proyecto GCP asociado a la cuenta de la UNAL para computar peticiones y transferencias).
+
+---
+
+## 3. Estrategia de Descarga y Persistencia Local
+Ruta base de almacenamiento local: `/mnt/datos/dnieves/WN3`
 
 ```
 /mnt/datos/dnieves/WN3/
-├── staging/                  # Archivos temporales (.tmp) durante la descarga
-├── raw/                      # Archivos de pronóstico confirmados e íntegros
+├── staging/                  # Descargas temporales en curso o chunks en extracción
+├── raw/                      # Zarr stores o NetCDF recortados confirmados
 │   └── YYYY/
 │       └── MM/
-│           └── YYYYMMDD_HH/  # Corrida inicializada en YYYY-MM-DD a las HH UTC
-├── processed/                # Datasets consolidados, remuestreados o en Zarr
-└── catalog/                  # Inventario de descargas, fechas disponibles y metadatos
+│           └── YYYYMMDD_HH/  # Corrida horaria de WeatherNext 3
+├── processed/                # Extracciones tabulares por estación o cubos recortados
+└── catalog/                  # Inventario de corridas disponibles y metadatos
 ```
 
----
-
-## 3. Principios de Descarga e Integridad
-1. **Descarga Atómica**: Se descarga primero en `staging/<nombre>.tmp`. Al finalizar la transferencia, se ejecuta verificación de cabeceras (`netCDF4.Dataset` o checksum) y se mueve a su destino final con `mv`.
-2. **Idempotencia**: Si el archivo ya existe en `raw/` con el tamaño correcto, el script omite la descarga y lo registra como existente.
-3. **Control de Fallos**: Los reintentos implementan retroceso exponencial. Si un archivo falla 3 veces consecutivas, el incidente se registra en el log sin detener las siguientes descargas.
+> [!tip] Ventaja Arquitectónica de Zarr + xarray
+> Al estar alojado en Zarr, **no es necesario descargar el globo completo**. Podemos realizar consultas y recortes espaciotemporales remotos (streaming con `xarray` + `gcsfs` / `obstore`) delimitando la caja geográfica de Colombia o dominio de interés, persistiendo en `/mnt/datos/dnieves/WN3/raw/` únicamente los subconjuntos relevantes.
 
 ---
 
-## 4. Próximos Pasos Técnicos
-- [ ] Definir endpoints específicos del servidor de origen (HTTP / FTP / NOMADS / SIATA).
-- [ ] Implementar el script recolector en `scripts/collect_wn3.py` bajo estándar `python-style`.
-- [ ] Integrar supervisión de cron con `loop-operator`.
+## 4. Requisitos para el Acceso Operativo
+1. **Autenticación GCP**:
+   Configurar credenciales con la cuenta autorizada `dnieves@unal.edu.co` mediante `gcloud auth application-default login`.
+2. **Proyecto GCP (Requester Pays)**:
+   Definir el ID del proyecto de Google Cloud (`gcp_project_id`) donde se imputarán las operaciones de lectura.
+3. **Librerías Python**:
+   - `xarray`
+   - `zarr`
+   - `gcsfs` o `obstore`

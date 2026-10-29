@@ -1,21 +1,20 @@
-# Especificación Técnica: Recolección y Almacenamiento WN3
+# Especificación Técnica: Conexión y Recolección WeatherNext 3 (WN3)
 
-## Objetivo
-Recolectar automáticamente las salidas de pronóstico meteorológico numérico (WN3 / WRF) hacia `/mnt/datos/dnieves/WN3`, garantizando integridad de archivos y trazabilidad temporal.
+## Origen
+- **Plataforma**: Google DeepMind / Google Research WeatherNext 3.
+- **Acceso Autorizado**: `dnieves@unal.edu.co`.
+- **Buckets GCS**:
+  - `gs://weathernext3_spatial/weathernext_3_0_0/zarr/`
+  - `gs://weathernext3_statistics_spatial/weathernext_3_0_0_statistics/zarr/`
+- **Mecanismo**: Google Cloud Storage con Requester Pays + Zarr.
 
-## Estructura de Almacenamiento
-```
-/mnt/datos/dnieves/WN3/
-├── raw/                      # Salidas originales NetCDF/GRIB2 (inmutables)
-│   └── YYYY/
-│       └── MM/
-│           └── YYYYMMDD_HH/
-├── staging/                  # Descargas en curso (.tmp) antes de verificar integridad
-└── catalog/                  # Metadatos, inventario y registros de recolección
-```
+## Stack de Ingesta
+- `xarray`
+- `zarr`
+- `gcsfs` / `obstore`
 
-## Requisitos del Script de Descarga
-1. **Atómicidad**: Descargar primero a `.tmp` o `staging/` y mover a `raw/` solo tras verificar integridad del archivo (mediante validación de cabecera con `netCDF4.Dataset` o tamaño mínimo).
-2. **Idempotencia**: Si una corrida ya existe y es íntegra, no volver a descargar.
-3. **Resiliencia**: Manejo de timeouts y códigos HTTP con backoff controlado.
-4. **Minimalismo (`python-style`)**: Sin módulos auxiliares innecesarios ni dependencias ajenas al stack principal.
+## Pipeline de Extracción
+1. Conexión autenticada vía Application Default Credentials (ADC) asociadas a `dnieves@unal.edu.co`.
+2. Apertura remota de store Zarr con `xarray.open_zarr(...)`.
+3. Slicing espaciotemporal (bounding box sobre Colombia / región de interés) para evitar descargas innecesarias del globo terráqueo completo.
+4. Escritura atómica a `/mnt/datos/dnieves/WN3/raw/` (o NetCDF local).

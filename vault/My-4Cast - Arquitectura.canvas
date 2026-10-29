@@ -7,7 +7,7 @@
       "y": 0,
       "width": 260,
       "height": 140,
-      "text": "# Servidor WN3 / WRF\n\n- NOMADS / Servidor local\n- Salidas meteorológicas numéricas\n- Formatos NetCDF / GRIB2",
+      "text": "# Google WeatherNext 3\n\n- Google DeepMind / Research\n- `gs://weathernext3_spatial`\n- Zarr 5km / 10km horario global\n- Autorizado: dnieves@unal.edu.co",
       "color": "2"
     },
     {
@@ -17,7 +17,7 @@
       "y": 0,
       "width": 260,
       "height": 140,
-      "text": "# Ingesta Automatizada\n\n- `scripts/collect_wn3.py`\n- Descargas atómicas con backoff\n- loop-operator supervisando",
+      "text": "# Ingesta Zarr & Slicing\n\n- `scripts/collect_wn3.py`\n- xarray + gcsfs / obstore\n- Recorte por bounding box regional\n- Descargas atómicas a staging",
       "color": "5"
     },
     {
@@ -27,7 +27,7 @@
       "y": 0,
       "width": 260,
       "height": 140,
-      "text": "# Staging & Integridad\n\n- `/mnt/datos/dnieves/WN3/staging`\n- Verificación de cabeceras netcdf\n- Rechazo de archivos corruptos",
+      "text": "# Staging & Integridad\n\n- `/mnt/datos/dnieves/WN3/staging`\n- Validación de dimensiones y NaNs\n- Verificación de metadatos",
       "color": "3"
     },
     {
@@ -47,7 +47,7 @@
       "y": 220,
       "width": 260,
       "height": 140,
-      "text": "# Postprocesamiento & ML\n\n- xarray + Dask + MetPy\n- Corrección de sesgo\n- Downscaling y verificación",
+      "text": "# Postprocesamiento & ML\n\n- xarray + Dask + MetPy\n- Corrección de sesgo y ensamble\n- Downscaling y verificación",
       "color": "6"
     },
     {
@@ -57,7 +57,7 @@
       "y": 220,
       "width": 260,
       "height": 140,
-      "text": "# Memoria Persistente\n\n- Vault de Obsidian (`vault/`)\n- Diarios de avance en `diarios/`\n- Instrucciones y MOC central",
+      "text": "# Memoria Persistente\n\n- Vault de Obsidian (`vault/`)\n- Diarios de avance en `diarios/`\n- MOCs y especificaciones WN3",
       "color": "1"
     }
   ],
