@@ -43,8 +43,8 @@ lat_cor   = ds.lat_0p1
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
-fig = figure(figsize=(7, 8))
-gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.04], wspace=0.08)
+fig = figure(figsize=(8.2, 7.2))
+gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.06)
 ax  = fig.add_subplot(gs[0, 0], projection=PlateCarree())
 cax = fig.add_subplot(gs[0, 1])
 
@@ -58,7 +58,7 @@ ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
 #%% RENDERIZADO
 im = ax.pcolormesh(lon_cor, lat_cor, ppt, cmap=CMAP_PPT, norm=NORM_PPT,
                    transform=PlateCarree())
-ax.set_extent([-85, -66, -5.0, 16.5], crs=PlateCarree())
+ax.set_extent([-85, -60, -5.0, 16.5], crs=PlateCarree())
 ax.set_title(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
              loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
 ax.text(0.985, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,

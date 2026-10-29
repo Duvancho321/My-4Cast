@@ -39,8 +39,8 @@ init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
-fig = figure(figsize=(7, 8))
-gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.04], wspace=0.08)
+fig = figure(figsize=(8.2, 7.2))
+gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.06)
 ax  = fig.add_subplot(gs[0, 0], projection=PlateCarree())
 cax = fig.add_subplot(gs[0, 1])
 
@@ -50,7 +50,7 @@ ax.gridlines(draw_labels={'bottom': True, 'left': True},
 ax.add_feature(costas, linewidth=0.9, edgecolor='#222222')
 ax.add_feature(BORDERS, linewidth=0.8, edgecolor='#444444')
 ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
-ax.set_extent([-85, -66, -5.0, 16.5], crs=PlateCarree())
+ax.set_extent([-85, -60, -5.0, 16.5], crs=PlateCarree())
 
 ppt_ini = ds['total_precipitation_1hr_p50'].isel(init_time=0, lead_time=0).values * 1000
 im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT,

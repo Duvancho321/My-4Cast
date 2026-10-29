@@ -28,7 +28,7 @@ prefix_run  = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{run_id}/predi
 lat_min     = -5.0
 lat_max     = 16.5
 lon_min     = 275.0  # -85.0° a convención 0-360
-lon_max     = 294.0  # -66.0° a convención 0-360
+lon_max     = 300.0  # -60.0° a convención 0-360
 ruta_zarr   = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_tmp    = f'/mnt/datos/dnieves/WN3/staging/{run_id}.zarr'
 
