@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.7"
+__version__: "0.0.8"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Paleta modular src.paletas y atribucion apilada.
+    - [2026-10-29][Duvan]: Título superior sin redundancia y texto inferior centrado.
 """
 
 from sys import argv
@@ -58,10 +58,10 @@ ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
 im = ax.pcolormesh(lon_cor, lat_cor, ppt, cmap=CMAP_PPT, norm=NORM_PPT,
                    transform=PlateCarree())
 ax.set_extent([-80, -66, -4.5, 13.5], crs=PlateCarree())
-ax.set_title(f'WN3 | Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
+ax.set_title(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
              loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
-ax.text(0.98, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
-        ha='right', va='bottom', fontsize=7.5, color='#333333', linespacing=1.2,
+ax.text(0.97, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
+        ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
         bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
 
 cbar = fig.colorbar(im, cax=cax, extend='max')

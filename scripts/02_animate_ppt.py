@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.6"
+__version__: "0.0.7"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Paleta modular src.paletas y atribución apilada WN3.
+    - [2026-10-29][Duvan]: Encabezado limpio y texto inferior centrado multilínea.
 """
 
 from sys import path as ruta_sys
@@ -54,10 +54,10 @@ ax.set_extent([-80, -66, -4.5, 13.5], crs=PlateCarree())
 ppt_ini = ds['total_precipitation_1hr_p50'].isel(init_time=0, lead_time=0).values * 1000
 im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT,
                         transform=PlateCarree())
-titulo  = ax.set_title(f'WN3 | Válido: {init_str} (+01h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
+titulo  = ax.set_title(f'Válido: {init_str} (+01h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
                        loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
-ax.text(0.98, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
-        ha='right', va='bottom', fontsize=7.5, color='#333333', linespacing=1.2,
+ax.text(0.97, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
+        ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
         bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
 
 cbar = fig.colorbar(im, cax=cax, extend='max')
@@ -78,7 +78,7 @@ def iterar_cuadros():
         valid_str = f"{str(valid_ts)[:10]} {str(valid_ts)[11:13]}h HL"
         ppt_arr   = (ds['total_precipitation_1hr_p50'].isel(init_time=0, lead_time=idx).values * 1000).ravel()
         im.set_array(ppt_arr)
-        titulo.set_text(f'WN3 | Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)')
+        titulo.set_text(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)')
         yield cuadro_desde_figura(fig)
 
 #%% COMPILACIÓN DE ANIMACIÓN
