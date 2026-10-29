@@ -25,10 +25,10 @@ n_horas     = int(argv[2]) if len(argv) > 2 else 360
 tipo_vars   = argv[3] if len(argv) > 3 else 'precipitation'
 bucket_name = 'weathernext3_statistics_spatial'
 prefix_run  = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{run_id}/predictions.zarr'
-lat_min     = -4.3
-lat_max     = 13.5
-lon_min     = 281.0  # -79.0° a convención 0-360
-lon_max     = 293.2  # -66.8° a convención 0-360
+lat_min     = -5.0
+lat_max     = 16.5
+lon_min     = 275.0  # -85.0° a convención 0-360
+lon_max     = 294.0  # -66.0° a convención 0-360
 ruta_zarr   = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_tmp    = f'/mnt/datos/dnieves/WN3/staging/{run_id}.zarr'
 
