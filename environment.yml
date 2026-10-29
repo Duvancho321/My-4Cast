@@ -1,0 +1,22 @@
+name: my-4cast
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.11
+  - xarray
+  - zarr
+  - netcdf4
+  - dask
+  - gcsfs
+  - fsspec
+  - metpy
+  - cartopy
+  - matplotlib
+  - pandas
+  - numpy
+  - scipy
+  - pip
+  - pip:
+    - obstore
+    - google-cloud-storage
