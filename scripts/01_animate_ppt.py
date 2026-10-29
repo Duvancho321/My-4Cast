@@ -42,8 +42,8 @@ init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
-fig = figure(figsize=(8.0, 7.2), dpi=300)
-gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.06)
+fig = figure(figsize=(8.0, 6.88), dpi=300)
+gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.02, left=0.03, right=0.96, top=0.93, bottom=0.03)
 ax  = fig.add_subplot(gs[0, 0], projection=PlateCarree())
 cax = fig.add_subplot(gs[0, 1])
 
@@ -69,9 +69,8 @@ cbar.set_label('PPT [mm/h]', labelpad=8)
 cbar.outline.set_visible(False)
 
 fig.canvas.draw()
-pos_ax  = ax.get_position()
-pos_cax = cax.get_position()
-cax.set_position([pos_cax.x0, pos_ax.y0, pos_cax.width, pos_ax.height])
+pos_ax = ax.get_position()
+cax.set_position([pos_ax.x1 + 0.015, pos_ax.y0, 0.025, pos_ax.height])
 
 #%% GENERADOR DE CUADROS Y EXTRACCIÓN DE FIGURA
 def iterar_cuadros():
