@@ -22,6 +22,7 @@ Bienvenido al sistema de memoria persistente y documentación técnica de **My-4
 ## 📌 Documentación Base del Proyecto
 - [[My-4Cast - Instrucciones]] — Custom Instructions en formato XML formal (resultado de `project-onboarding`) `EXTRACTED`
 - [[My-4Cast - Recoleccion WN3]] — Estrategia de recolección de pronósticos WN3 y arquitectura de almacenamiento `EXTRACTED`
+- [[My-4Cast - Variables WeatherNext 3]] — Catálogo completo de las 126 variables predictivas y 21 variables físicas `EXTRACTED`
 - [[My-4Cast - Convenciones y Estilos]] — Guía de estilo operativo (`python-style`, `real-sci-write`, `loop-operator`) `EXTRACTED`
 
 ---

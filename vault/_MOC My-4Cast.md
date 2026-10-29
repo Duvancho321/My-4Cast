@@ -16,6 +16,7 @@ created: 2026-10-28
 ## Núcleo del Proyecto
 - [[My-4Cast - Instrucciones]] `EXTRACTED` — Definición formal de rol, usuario, objetivo y restricciones del asistente.
 - [[My-4Cast - Recoleccion WN3]] `EXTRACTED` — Especificaciones de ingesta automatizada, validación de integridad y staging.
+- [[My-4Cast - Variables WeatherNext 3]] `EXTRACTED` — Catálogo maestro de 21 variables físicas y 126 variables con estadísticas.
 - [[My-4Cast - Convenciones y Estilos]] `EXTRACTED` — Síntesis de cumplimiento estricto de minimalismo de código y rigor de redacción.
 
 ---
