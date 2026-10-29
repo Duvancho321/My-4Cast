@@ -25,7 +25,7 @@ from src.animacion import cuadro_desde_figura, escribir_mp4
 #%% PARÁMETROS
 ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_colombia_360h.mp4'
-fps_video = 12
+fps_video = 6
 
 #%% CARGA DE METADATOS Y MALLA
 ds        = open_zarr(ruta_zarr)
