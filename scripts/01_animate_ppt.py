@@ -8,19 +8,20 @@ __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Unificación de figura y animación en paso 01.
+    - [2026-10-29][Duvan]: Exportacion dual UHD y WhatsApp.
 """
 
 from sys import path
 path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 
-from os.path import exists
+from os import system
 from pathlib import Path
+from os.path import exists
 from xarray import open_zarr
 from numpy import timedelta64
 from cartopy.crs import PlateCarree
-from src.paletas import CMAP_PPT, NORM_PPT
 from matplotlib.pyplot import close, figure
+from src.paletas import CMAP_PPT, NORM_PPT
 from cartopy.feature import BORDERS, NaturalEarthFeature
 from src.animacion import cuadro_desde_figura, escribir_mp4
 
@@ -30,6 +31,7 @@ hora_fig  = 12
 ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr' if exists('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr') else '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
 ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_colombia_360h.mp4'
+ruta_wapp = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_whatsapp.mp4'
 
 #%% CARGA DE METADATOS Y MALLA
 ds        = open_zarr(ruta_zarr)
@@ -94,3 +96,5 @@ Path(ruta_mp4).parent.mkdir(parents=True, exist_ok=True)
 Path(ruta_png).parent.mkdir(parents=True, exist_ok=True)
 escribir_mp4(iterar_cuadros(), ruta_mp4, fps=fps_video)
 close(fig)
+cmd_wapp = f'ffmpeg -y -i "{ruta_mp4}" -vf "scale=1200:960" -c:v libx264 -pix_fmt yuv420p -profile:v main -movflags +faststart -crf 23 "{ruta_wapp}" > /dev/null 2>&1'
+system(cmd_wapp)

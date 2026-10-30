@@ -16,9 +16,9 @@ $PYTHON "$DIR_PROYECTO/scripts/00_get_wn3.py"
 ESTADO=$?
 
 if [ $ESTADO -eq 0 ]; then
-    echo "Nueva corrida detectada e integrada. Generando figura y animacion..."
+    echo "Nueva corrida detectada e integrada. Generando figura y animaciones..."
     $PYTHON "$DIR_PROYECTO/scripts/01_animate_ppt.py"
-    echo "Actualizacion visual completada."
+    echo "Actualizacion visual completada (Master UHD y WhatsApp)."
 elif [ $ESTADO -eq 10 ]; then
     echo "No hay corridas nuevas en GCS. Se omite la generacion grafica."
 else
