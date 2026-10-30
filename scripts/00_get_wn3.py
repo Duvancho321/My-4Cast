@@ -31,7 +31,7 @@ args = parser.parse_args()
 fecha_limpia = args.fecha.replace('-', '')
 fecha_iso    = f'{fecha_limpia[:4]}-{fecha_limpia[4:6]}-{fecha_limpia[6:8]}'
 horas_eval   = ['00', '06', '12', '18'] if args.hora == 'auto' else [args.hora.zfill(2)]
-ruta_zarr    = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
+ruta_zarr    = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
 
 #%% PROCESAMIENTO DE CORRIDAS
 corridas_ingestadas = 0

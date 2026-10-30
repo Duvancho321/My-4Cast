@@ -3,12 +3,12 @@ descarga.py — Ingesta y validación modular de corridas de WeatherNext 3.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.0.1"
+__version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Modularización de ingesta y validación de corridas.
+    - [2026-10-29][Duvan]: Soporte para streaming de todas las 126 variables.
 """
 
 from os.path import exists
@@ -70,30 +70,32 @@ def existe_en_gcs(run_id):
         return False
 
 
-def descargar_corrida_wn3(run_id, lead_horas=360):
+def descargar_corrida_wn3(run_id, lead_horas=360, tipo_vars='all'):
     """
     Descarga y recorta una corrida de WeatherNext 3 desde Google Cloud Storage.
 
     Parameters
     ----------
     run_id : str
-        Identificador de la corrida (ej. '20261029_06hr_01_preds').
+        Identificador de la corrida (ej. '20261029_12hr_01_preds').
     lead_horas : int, optional
         Horizonte máximo de pronóstico en horas (por defecto 360).
+    tipo_vars : str, optional
+        'all' para las 126 variables o 'precipitation' para precipitación.
 
     Returns
     -------
     xarray.Dataset
-        Dataset cargado en memoria con las variables de precipitación en Colombia.
+        Dataset recortado con dimensión 'init_time' para Colombia.
     """
     prefix_run = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{run_id}/predictions.zarr'
     ds_remote  = open_zarr(ObjectStore(GCSStore(bucket=bucket_wn3, prefix=prefix_run)))
-    vars_ppt   = [v for v in ds_remote.data_vars if 'precipitation' in v]
-    return (ds_remote[vars_ppt]
+    vars_sel   = list(ds_remote.data_vars) if tipo_vars == 'all' else [v for v in ds_remote.data_vars if 'precipitation' in v]
+    return (ds_remote[vars_sel]
         .sel(lat_0p1=slice(lat_min, lat_max), lon_0p1=slice(lon_min, lon_max),
+             lat_0p05=slice(lat_min, lat_max), lon_0p05=slice(lon_min, lon_max),
              lead_time=slice(timedelta64(1, 'h'), timedelta64(lead_horas, 'h')))
-        .expand_dims('init_time')
-        .load())
+        .expand_dims('init_time'))
 
 
 def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
