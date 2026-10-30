@@ -14,6 +14,7 @@ __changues__:
 from sys import path
 path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 
+from os.path import exists
 from pathlib import Path
 from xarray import open_zarr
 from numpy import timedelta64
@@ -26,7 +27,7 @@ from src.animacion import cuadro_desde_figura, escribir_mp4
 #%% CONFIGURACIÓN DE PARÁMETROS
 fps_video = 3
 hora_fig  = 12
-ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
+ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr' if exists('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr') else '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
 ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
 ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_colombia_360h.mp4'
 
