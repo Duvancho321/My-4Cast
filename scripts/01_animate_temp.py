@@ -1,5 +1,5 @@
 """
-02_animate_temp.py — Generación de figura clave y animación horaria de temperatura a 2m.
+01_animate_temp.py — Generación de figura clave y animación horaria de temperatura a 2m.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"

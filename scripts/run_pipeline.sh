@@ -18,8 +18,8 @@ ESTADO=$?
 if [ $ESTADO -eq 0 ]; then
     echo "Nueva corrida detectada e integrada. Generando suite grafica operativa..."
     $PYTHON "$DIR_PROYECTO/scripts/01_animate_ppt.py"
-    $PYTHON "$DIR_PROYECTO/scripts/02_animate_temp.py"
-    $PYTHON "$DIR_PROYECTO/scripts/03_animate_radiation.py"
+    $PYTHON "$DIR_PROYECTO/scripts/01_animate_temp.py"
+    $PYTHON "$DIR_PROYECTO/scripts/01_animate_radiation.py"
     echo "Actualizacion visual completada (Precipitacion, Temperatura y Radiacion en UHD + WhatsApp)."
 elif [ $ESTADO -eq 10 ]; then
     echo "No hay corridas nuevas en GCS. Se omite la generacion grafica."
