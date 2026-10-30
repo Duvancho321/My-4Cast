@@ -43,14 +43,16 @@ init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
 deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
 
-fig = figure(figsize=(8.0, 6.88), dpi=300)
-gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.02, left=0.03, right=0.96, top=0.93, bottom=0.03)
+fig = figure(figsize=(8.0, 6.4), dpi=300)
+gs  = fig.add_gridspec(1, 2, width_ratios=[1, 0.035], wspace=0.03, left=0.07, right=0.88, top=0.91, bottom=0.07)
 ax  = fig.add_subplot(gs[0, 0], projection=PlateCarree())
 cax = fig.add_subplot(gs[0, 1])
 
 [spine.set_visible(False) for spine in ax.spines.values()]
-ax.gridlines(draw_labels={'bottom': True, 'left': True},
-             linewidth=0.5, color='gray', alpha=0.3, linestyle='--')
+gl = ax.gridlines(draw_labels={'bottom': True, 'left': True},
+                  linewidth=0.5, color='gray', alpha=0.3, linestyle='--')
+gl.top_labels   = False
+gl.right_labels = False
 ax.add_feature(costas, linewidth=0.9, edgecolor='#222222')
 ax.add_feature(BORDERS, linewidth=0.8, edgecolor='#444444')
 ax.add_feature(deptos, linewidth=0.45, edgecolor='#777777', linestyle=':')
@@ -71,7 +73,7 @@ cbar.outline.set_visible(False)
 
 fig.canvas.draw()
 pos_ax = ax.get_position()
-cax.set_position([pos_ax.x1 + 0.015, pos_ax.y0, 0.025, pos_ax.height])
+cax.set_position([pos_ax.x1 + 0.02, pos_ax.y0, 0.025, pos_ax.height])
 
 #%% GENERADOR DE CUADROS Y EXTRACCIÓN DE FIGURA
 def iterar_cuadros():
