@@ -1,14 +1,14 @@
 """
-01_animate_ppt.py — Generación de figura clave y animación horaria de precipitación.
+01_animate_ppt.py — Generación de figura clave y animación horaria de precipitación y viento.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.1.0"
+__version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-10-29][Duvan]: Exportacion dual UHD y WhatsApp.
+    - [2026-10-29][Duvan]: Integracion de vectores de viento 10m y exportacion dual.
 """
 
 from sys import path
@@ -26,20 +26,26 @@ from cartopy.feature import BORDERS, NaturalEarthFeature
 from src.animacion import cuadro_desde_figura, escribir_mp4
 
 #%% CONFIGURACIÓN DE PARÁMETROS
+salto     = 10
 fps_video = 3
 hora_fig  = 12
-ruta_zarr = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr' if exists('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr') else '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'
+ruta_zarr = ('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr' if exists('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr')
+             else ('/mnt/datos/dnieves/WN3/staging/test_ppt_wind_360h.zarr' if exists('/mnt/datos/dnieves/WN3/staging/test_ppt_wind_360h.zarr')
+             else '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'))
 ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
 ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_colombia_360h.mp4'
 ruta_wapp = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_whatsapp.mp4'
 
 #%% CARGA DE METADATOS Y MALLA
-ds        = open_zarr(ruta_zarr)
-lon_cor   = ds.lon_0p1 - 360
-lat_cor   = ds.lat_0p1
-n_pasos   = len(ds.lead_time)
-init_ts   = ds.init_time.values[-1] - timedelta64(5, 'h')
-init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
+ds           = open_zarr(ruta_zarr)
+lon_cor      = ds.lon_0p1.values - 360
+lat_cor      = ds.lat_0p1.values
+lon_q        = lon_cor[::salto]
+lat_q        = lat_cor[::salto]
+n_pasos      = len(ds.lead_time)
+tiene_viento = 'u_component_of_wind_10m_p50' in ds.data_vars and 'v_component_of_wind_10m_p50' in ds.data_vars
+init_ts      = ds.init_time.values[-1] - timedelta64(5, 'h')
+init_str     = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
 
 #%% CONFIGURACIÓN DE FIGURA CARTOGRÁFICA
 costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
@@ -63,8 +69,20 @@ ax.set_extent([-85, -60, -5.0, 16.5], crs=PlateCarree())
 ppt_ini = ds['total_precipitation_1hr_p50'].isel(init_time=-1, lead_time=0).values * 1000
 im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT,
                         transform=PlateCarree())
-titulo  = ax.set_title(f'Válido: {init_str} (+01h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)',
-                       loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
+
+if tiene_viento:
+    u_ini = ds['u_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=0).values[::salto, ::salto]
+    v_ini = ds['v_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=0).values[::salto, ::salto]
+    qv    = ax.quiver(lon_q, lat_q, u_ini, v_ini, transform=PlateCarree(),
+                      scale=200, width=0.0022, color='#1e293b', alpha=0.82,
+                      pivot='mid', headwidth=3.2, headlength=4.0)
+    ax.quiverkey(qv, 0.12, 0.045, 10, '10 m/s', labelpos='E',
+                 coordinates='axes', fontproperties={'size': 8, 'weight': 'bold'},
+                 facecolor='white', edgecolor='none')
+
+subtitulo_ini = 'PPT (P50) y Viento 10m (P50)' if tiene_viento else 'P50 Ensamble (64 miembros)'
+titulo        = ax.set_title(f'Válido: {init_str} (+01h)\nCorrida: {init_str} — {subtitulo_ini}',
+                             loc='left', fontsize=9, fontweight='bold', linespacing=1.3)
 ax.text(0.985, 0.02, 'WeatherNext 3\nGoogle DeepMind', transform=ax.transAxes,
         ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
         bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
@@ -86,7 +104,12 @@ def iterar_cuadros():
         valid_str = f"{str(valid_ts)[:10]} {str(valid_ts)[11:13]}h HL"
         ppt_arr   = (ds['total_precipitation_1hr_p50'].isel(init_time=-1, lead_time=idx).values * 1000).ravel()
         im.set_array(ppt_arr)
-        titulo.set_text(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — P50 Ensamble (64 miembros)')
+        if tiene_viento:
+            u_arr = ds['u_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=idx).values[::salto, ::salto]
+            v_arr = ds['v_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=idx).values[::salto, ::salto]
+            qv.set_UVC(u_arr, v_arr)
+        subtitulo = 'PPT (P50) y Viento 10m (P50)' if tiene_viento else 'P50 Ensamble (64 miembros)'
+        titulo.set_text(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — {subtitulo}')
         if idx == hora_fig:
             fig.savefig(ruta_png, dpi=300, bbox_inches='tight')
         yield cuadro_desde_figura(fig)
