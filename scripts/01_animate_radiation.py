@@ -1,5 +1,5 @@
 """
-03_animate_radiation.py — Generación de figura clave y animación de radiación solar superficial.
+01_animate_radiation.py — Generación de figura clave y animación de radiación solar superficial.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
