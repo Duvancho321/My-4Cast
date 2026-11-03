@@ -11,11 +11,12 @@ __changues__:
     - [2026-11-03][Duvan]: Worker de recorte para 15 variables fisicas seleccionadas.
 """
 
-from sys import argv
-from json import dump
-from os import link
+from sys import argv, exit
+from json import dump, loads
+from os import getenv, link
 from os.path import exists
 from shutil import make_archive, rmtree
+from urllib.request import Request, urlopen
 from datetime import datetime, timedelta, timezone
 from obstore.store import GCSStore
 from zarr.storage import ObjectStore
@@ -71,8 +72,24 @@ def obtener_dataset_disponible():
 
 if __name__ == '__main__':
     run_id, ds_remoto = obtener_dataset_disponible()
-    ruta_sal          = f'colombia_{run_id}.zarr'
-    ruta_zip          = f'colombia_{run_id}'
+
+    # Comprobación de idempotencia: Si ya está publicada en colombia-wn3-latest, salir
+    if len(argv) <= 1 or argv[1] == 'auto':
+        gh_tok  = getenv('GITHUB_TOKEN')
+        hdrs_gh = {'Authorization': f'token {gh_tok}'} if gh_tok else {'User-Agent': 'My-4Cast'}
+        url_chk = 'https://api.github.com/repos/Duvancho321/My-4Cast/releases/tags/colombia-wn3-latest'
+        try:
+            req_chk = Request(url_chk, headers=hdrs_gh)
+            with urlopen(req_chk) as resp_c:
+                rel_c = loads(resp_c.read().decode())
+            if run_id in rel_c.get('name', '') or run_id in rel_c.get('body', ''):
+                print(f'Corrida {run_id} ya se encuentra publicada en colombia-wn3-latest. Se omite re-procesamiento.', flush=True)
+                exit(0)
+        except Exception:
+            pass
+
+    ruta_sal = f'colombia_{run_id}.zarr'
+    ruta_zip = f'colombia_{run_id}'
     
     print(f'Procesando corrida: {run_id}', flush=True)
     vars_validas = [v for v in ds_remoto.data_vars if any(v.startswith(b) for b in bases_sel)]

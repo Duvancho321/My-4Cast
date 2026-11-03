@@ -2,8 +2,8 @@ name: WeatherNext 3 Colombia Cropper
 
 on:
   schedule:
-    # 00:15, 06:15, 12:15, 18:15 UTC
-    - cron: '15 0,6,12,18 * * *'
+    # Cada 3 horas a minuto 20 UTC (cubre la llegada de 00, 06, 12, 18 UTC)
+    - cron: '20 */3 * * *'
   workflow_dispatch:
     inputs:
       run_id:
@@ -53,18 +53,29 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/application_default_credentials.json" >> $GITHUB_ENV
 
       - name: Crop Colombia from WeatherNext 3 GCS
+        id: crop_colombia
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python scripts/cloud_crop_colombia.py "${{ github.event.inputs.run_id || 'auto' }}"
-          split -b 1000M -d colombia_latest.zip colombia_part_
-          rm -f colombia_*.zip
+          if [ -f colombia_latest.zip ]; then
+            split -b 1000M -d colombia_latest.zip colombia_part_
+            rm -f colombia_*.zip
+            echo "has_new_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_new_run=false" >> $GITHUB_OUTPUT
+            echo "No hay nueva corrida para publicar."
+          fi
 
       - name: Publish to GitHub Release
+        if: steps.crop_colombia.outputs.has_new_run == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RUN_TAG="colombia-wn3-latest"
+          RUN_ID=$(python -c "import json; print(json.load(open('manifest.json'))['run_id'])" 2>/dev/null || echo "latest")
           gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$RUN_TAG" colombia_part_* manifest.json \
-            --title "WeatherNext 3 Colombia - $(date -u '+%Y-%m-%d %H:%M UTC')" \
-            --notes "Recorte automatico para Colombia (15 variables fisicas seleccionadas) generado en GitHub Actions." \
+            --title "WeatherNext 3 Colombia - $RUN_ID" \
+            --notes "Recorte automatico para Colombia: corrida $RUN_ID con 15 variables fisicas seleccionadas." \
             --latest
