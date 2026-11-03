@@ -69,6 +69,21 @@ if not assets:
     print('No se encontraron partes de recorte en el release.', flush=True)
     exit(10)
 
+manifest_asset = next((a for a in data_rel.get('assets', []) if a.get('name') == 'manifest.json'), None)
+if manifest_asset and exists(ruta_zarr):
+    try:
+        url_man = manifest_asset['url'] if token_gh else manifest_asset['browser_download_url']
+        req_man = Request(url_man, headers=headers)
+        with urlopen(req_man) as resp_m:
+            man_data = loads(resp_m.read().decode())
+        init_cand = man_data.get('init_time')
+        ds_loc    = open_zarr(ruta_zarr)
+        if str(init_cand) in [str(t) for t in ds_loc.init_time.values]:
+            print(f'Corrida {init_cand} ya se encuentra integrada en el almacén local.', flush=True)
+            exit(10)
+    except Exception:
+        pass
+
 if exists(ruta_tmp):
     remove(ruta_tmp)
 

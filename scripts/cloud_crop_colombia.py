@@ -11,8 +11,9 @@ __changues__:
     - [2026-11-03][Duvan]: Worker de recorte para 15 variables fisicas seleccionadas.
 """
 
-from os import link
 from sys import argv
+from json import dump
+from os import link
 from os.path import exists
 from shutil import make_archive, rmtree
 from datetime import datetime, timedelta, timezone
@@ -93,5 +94,9 @@ if __name__ == '__main__':
         link(f'{ruta_zip}.zip', 'colombia_latest.zip')
     except Exception:
         pass
+    
+    init_val = str(sub.init_time.values[0])
+    with open('manifest.json', 'w') as fm:
+        dump({'run_id': run_id, 'init_time': init_val}, fm)
     
     print(f'Recorte exitoso empaquetado en: {ruta_zip}.zip y colombia_latest.zip', flush=True)

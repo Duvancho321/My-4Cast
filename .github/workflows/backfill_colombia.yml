@@ -1,0 +1,65 @@
+name: Backfill Colombia WeatherNext 3
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'JSON array of run_ids'
+        required: true
+        default: '["20261101_00hr_01_preds", "20261101_06hr_01_preds", "20261101_12hr_01_preds", "20261101_18hr_01_preds", "20261102_00hr_01_preds", "20261102_06hr_01_preds", "20261102_12hr_01_preds", "20261102_18hr_01_preds", "20261103_00hr_01_preds", "20261103_12hr_01_preds"]'
+
+jobs:
+  backfill:
+    name: Backfill ${{ matrix.run_id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        run_id: ${{ fromJson(github.event.inputs.runs) }}
+
+    steps:
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure Google Application Default Credentials
+        env:
+          GCP_ADC_JSON: ${{ secrets.GCP_ADC }}
+        run: |
+          mkdir -p ~/.config/gcloud
+          echo "$GCP_ADC_JSON" > ~/.config/gcloud/application_default_credentials.json
+
+      - name: Crop Colombia from WeatherNext 3 GCS
+        run: |
+          python scripts/cloud_crop_colombia.py "${{ matrix.run_id }}"
+          split -b 1000M -d colombia_latest.zip colombia_part_
+          rm -f colombia_*.zip
+
+      - name: Publish Run to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_TAG="colombia-${{ matrix.run_id }}"
+          gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RUN_TAG" colombia_part_* manifest.json \
+            --title "WeatherNext 3 Colombia - ${{ matrix.run_id }}" \
+            --notes "Recorte automatico para Colombia de corrida historica ${{ matrix.run_id }}."
