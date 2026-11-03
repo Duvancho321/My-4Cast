@@ -28,3 +28,11 @@ staging/
 .DS_Store
 *.swp
 *~
+
+# Repositorio Privado y Notas de Investigación (100% Desacoplado)
+vault/
+.claude/
+.agents/
+AGENTS.md
+GEMINI.md
+.git-private/
