@@ -17,7 +17,20 @@ permissions:
 jobs:
   crop_and_release:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
+      - name: Free up runner disk space
+        run: |
+          echo "=== Espacio antes de limpieza ==="
+          df -h /
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo docker system prune --all --force 2>/dev/null || true
+          echo "=== Espacio liberado exitosamente ==="
+          df -h /
+
       - name: Checkout repository
         uses: actions/checkout@v4
 

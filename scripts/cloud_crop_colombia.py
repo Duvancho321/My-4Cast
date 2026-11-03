@@ -11,9 +11,10 @@ __changues__:
     - [2026-11-03][Duvan]: Worker de recorte para 15 variables fisicas seleccionadas.
 """
 
+from os import link
 from sys import argv
 from os.path import exists
-from shutil import copyfile, make_archive, rmtree
+from shutil import make_archive, rmtree
 from datetime import datetime, timedelta, timezone
 from obstore.store import GCSStore
 from zarr.storage import ObjectStore
@@ -87,7 +88,10 @@ if __name__ == '__main__':
     rmtree(ruta_sal, ignore_errors=True)
     sub.to_zarr(ruta_sal, mode='w')
     make_archive(ruta_zip, 'zip', ruta_sal)
-    copyfile(f'{ruta_zip}.zip', 'colombia_latest.zip')
     rmtree(ruta_sal, ignore_errors=True)
+    try:
+        link(f'{ruta_zip}.zip', 'colombia_latest.zip')
+    except Exception:
+        pass
     
     print(f'Recorte exitoso empaquetado en: {ruta_zip}.zip y colombia_latest.zip', flush=True)
