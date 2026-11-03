@@ -1,0 +1,48 @@
+name: WeatherNext 3 Colombia Cropper
+
+on:
+  schedule:
+    # 00:15, 06:15, 12:15, 18:15 UTC
+    - cron: '15 0,6,12,18 * * *'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Identificador de la corrida (o auto para la mas reciente)'
+        required: false
+        default: 'auto'
+
+permissions:
+  contents: write
+
+jobs:
+  crop_and_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install xarray zarr obstore numpy
+
+      - name: Crop Colombia from WeatherNext 3 GCS
+        run: |
+          python scripts/cloud_crop_colombia.py "${{ github.event.inputs.run_id || 'auto' }}"
+
+      - name: Publish to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_TAG="colombia-wn3-latest"
+          gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RUN_TAG" colombia_*.zip \
+            --title "WeatherNext 3 Colombia - $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --notes "Recorte automatico para Colombia (15 variables fisicas seleccionadas) generado en GitHub Actions." \
+            --latest
