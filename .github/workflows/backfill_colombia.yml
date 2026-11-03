@@ -8,6 +8,9 @@ on:
         required: true
         default: '["20261101_00hr_01_preds", "20261101_06hr_01_preds", "20261101_12hr_01_preds", "20261101_18hr_01_preds", "20261102_00hr_01_preds", "20261102_06hr_01_preds", "20261102_12hr_01_preds", "20261102_18hr_01_preds", "20261103_00hr_01_preds", "20261103_12hr_01_preds"]'
 
+permissions:
+  contents: write
+
 jobs:
   backfill:
     name: Backfill ${{ matrix.run_id }}
@@ -22,10 +25,15 @@ jobs:
     steps:
       - name: Free up runner disk space
         run: |
+          echo "=== Espacio antes de limpieza ==="
+          df -h /
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /opt/hostedtoolcache
+          sudo docker system prune --all --force 2>/dev/null || true
+          echo "=== Espacio liberado exitosamente ==="
+          df -h /
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,7 +42,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
