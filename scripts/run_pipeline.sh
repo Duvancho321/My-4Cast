@@ -11,8 +11,8 @@ echo "=========================================================="
 echo "Inicio pipeline WN3: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "=========================================================="
 
-# 1. Ingesta de corrida más reciente disponible en GCS
-$PYTHON "$DIR_PROYECTO/scripts/00_get_wn3.py"
+# 1. Ingesta de corrida más reciente disponible desde la nube (GitHub Release)
+$PYTHON "$DIR_PROYECTO/scripts/00_fetch_cloud_wn3.py"
 ESTADO=$?
 
 if [ $ESTADO -eq 0 ]; then
