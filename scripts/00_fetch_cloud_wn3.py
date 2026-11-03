@@ -14,10 +14,11 @@ __changues__:
 from sys import exit, path
 path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 
+from os import remove
+from json import loads
 from shutil import rmtree
 from os.path import exists
 from zipfile import ZipFile
-from json import loads
 from urllib.request import Request, urlopen
 from xarray import open_zarr
 from src.descarga import apilar_corrida_zarr
@@ -59,27 +60,36 @@ except Exception as e:
     print(f'Alerta: No se pudo consultar el release en GitHub: {e}', flush=True)
     exit(10)
 
-asset_zip = None
-for a in data_rel.get('assets', []):
-    if a.get('name') == 'colombia_latest.zip':
-        asset_zip = a
-        break
+assets = [a for a in data_rel.get('assets', []) if a.get('name', '').startswith('colombia_part_')]
+assets.sort(key=lambda x: x['name'])
+if not assets:
+    assets = [a for a in data_rel.get('assets', []) if a.get('name') == 'colombia_latest.zip']
 
-if not asset_zip:
-    print('No se encontro el archivo colombia_latest.zip en el release.', flush=True)
+if not assets:
+    print('No se encontraron partes de recorte en el release.', flush=True)
     exit(10)
 
-url_descarga = asset_zip['url'] if token_gh else asset_zip['browser_download_url']
+if exists(ruta_tmp):
+    remove(ruta_tmp)
+
+#%% DESCARGA Y ENSAMBLADO DE PARTES
+headers_dl = headers.copy()
 if token_gh:
-    headers['Accept'] = 'application/octet-stream'
+    headers_dl['Accept'] = 'application/octet-stream'
 
-#%% DESCARGA DEL RECORTE (140 MB)
-print(f"Descargando recorte {asset_zip['name']} ({asset_zip['size'] / 1e6:.1f} MB)...", flush=True)
-req_data = Request(url_descarga, headers=headers)
-with urlopen(req_data) as resp, open(ruta_tmp, 'wb') as f_out:
-    f_out.write(resp.read())
+with open(ruta_tmp, 'wb') as f_out:
+    for a in assets:
+        print(f"Descargando parte {a['name']} ({a['size'] / 1e6:.1f} MB)...", flush=True)
+        url_dl = a['url'] if token_gh else a['browser_download_url']
+        req_dl = Request(url_dl, headers=headers_dl)
+        with urlopen(req_dl) as resp:
+            while True:
+                chunk = resp.read(16 * 1024 * 1024)
+                if not chunk:
+                    break
+                f_out.write(chunk)
 
-print('Descarga completada en 1 segundo. Extrayendo...', flush=True)
+print('Descarga y ensamblado completados. Extrayendo...', flush=True)
 rmtree(ruta_dir, ignore_errors=True)
 with ZipFile(ruta_tmp, 'r') as zf:
     zf.extractall(ruta_dir)
@@ -92,6 +102,6 @@ print(f'Integrando corrida {init_time} al Zarr local...', flush=True)
 apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_stage)
 rmtree(ruta_dir, ignore_errors=True)
 if exists(ruta_tmp):
-    rmtree(ruta_tmp, ignore_errors=True) if exists(ruta_tmp) and not exists(ruta_tmp) else None
+    remove(ruta_tmp)
 
 print('Integracion exitosa completada.', flush=True)
