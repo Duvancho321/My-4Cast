@@ -31,6 +31,14 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Configure Google Application Default Credentials
+        env:
+          GCP_ADC: ${{ secrets.GCP_ADC }}
+        run: |
+          mkdir -p "$HOME/.config/gcloud"
+          echo "$GCP_ADC" > "$HOME/.config/gcloud/application_default_credentials.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/application_default_credentials.json" >> $GITHUB_ENV
+
       - name: Crop Colombia from WeatherNext 3 GCS
         run: |
           python scripts/cloud_crop_colombia.py "${{ github.event.inputs.run_id || 'auto' }}"
