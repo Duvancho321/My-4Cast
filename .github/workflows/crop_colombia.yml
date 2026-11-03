@@ -55,6 +55,8 @@ jobs:
       - name: Crop Colombia from WeatherNext 3 GCS
         run: |
           python scripts/cloud_crop_colombia.py "${{ github.event.inputs.run_id || 'auto' }}"
+          split -b 1000M -d colombia_latest.zip colombia_part_
+          rm -f colombia_*.zip
 
       - name: Publish to GitHub Release
         env:
@@ -62,7 +64,7 @@ jobs:
         run: |
           RUN_TAG="colombia-wn3-latest"
           gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$RUN_TAG" colombia_*.zip \
+          gh release create "$RUN_TAG" colombia_part_* \
             --title "WeatherNext 3 Colombia - $(date -u '+%Y-%m-%d %H:%M UTC')" \
             --notes "Recorte automatico para Colombia (15 variables fisicas seleccionadas) generado en GitHub Actions." \
             --latest
