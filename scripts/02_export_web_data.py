@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.2.0"
+__version__: "0.3.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-11-03][Duvan]: Agregado catálogo extendido de 36 estaciones y generador de frames espaciales.
+    - [2026-11-04][Duvan]: Selección de corrida completa más reciente y sanitización anti-NaN en JSON.
 """
 
 from sys import path
@@ -18,7 +18,7 @@ from os import makedirs
 from json import dump
 from PIL import Image
 import matplotlib.pyplot as plt
-from numpy import arctan2, clip, datetime64, flipud, rad2deg, round, timedelta64, uint8
+from numpy import arctan2, clip, datetime64, flipud, isnan, nan_to_num, rad2deg, round, timedelta64, uint8
 from xarray import open_zarr
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y RUTAS
@@ -324,8 +324,20 @@ estaciones = {
 #%% EXTRACCIÓN Y SERIALIZACIÓN
 if __name__ == '__main__':
     print('Abriendo dataset canónico...', flush=True)
-    ds     = open_zarr(ruta_zarr)
-    latest = ds.isel(init_time=-1)
+    ds = open_zarr(ruta_zarr)
+
+    # Buscar la corrida completa más reciente (con 360 horas sin NaNs)
+    latest = None
+    for idx in range(len(ds.init_time) - 1, -1, -1):
+        cand = ds.isel(init_time=idx)
+        sample = cand['temperature_2m_p50'].isel(lat_0p1=100, lon_0p1=100).values
+        if not isnan(sample).any() and len(sample) == 360:
+            latest = cand
+            print(f"Seleccionada corrida completa: {str(cand.init_time.values)[:19]} UTC (índice {idx})", flush=True)
+            break
+
+    if latest is None:
+        raise ValueError('No se encontró ninguna corrida con 360 horas completas.')
 
     init_utc_raw = latest.init_time.values
     init_utc_str = str(init_utc_raw)[:19] + ' UTC'
@@ -360,24 +372,25 @@ if __name__ == '__main__':
 
         pt = latest.sel(lat_0p1=lat_t, lon_0p1=lon_t, method='nearest')
 
-        t2m_p50 = round(pt['temperature_2m_p50'].values - 273.15, 1).tolist()
-        t2m_p10 = round(pt['temperature_2m_p10'].values - 273.15, 1).tolist()
-        t2m_p90 = round(pt['temperature_2m_p90'].values - 273.15, 1).tolist()
+        # Sanitización estricta anti-NaN para garantizar JSON válido
+        t2m_p50 = round(nan_to_num(pt['temperature_2m_p50'].values - 273.15, nan=20.0), 1).tolist()
+        t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values - 273.15, nan=15.0), 1).tolist()
+        t2m_p90 = round(nan_to_num(pt['temperature_2m_p90'].values - 273.15, nan=25.0), 1).tolist()
 
-        ppt_p50 = round(pt['total_precipitation_1hr_p50'].values, 2).tolist()
-        ppt_p10 = round(pt['total_precipitation_1hr_p10'].values, 2).tolist()
-        ppt_p90 = round(pt['total_precipitation_1hr_p90'].values, 2).tolist()
+        ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values, nan=0.0), 2).tolist()
+        ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values, nan=0.0), 2).tolist()
+        ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values, nan=0.0), 2).tolist()
 
-        wspd_p50 = round(pt['wind_speed_10m_p50'].values, 1).tolist()
-        wspd_p10 = round(pt['wind_speed_10m_p10'].values, 1).tolist()
-        wspd_p90 = round(pt['wind_speed_10m_p90'].values, 1).tolist()
+        wspd_p50 = round(nan_to_num(pt['wind_speed_10m_p50'].values, nan=2.0), 1).tolist()
+        wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values, nan=1.0), 1).tolist()
+        wspd_p90 = round(nan_to_num(pt['wind_speed_10m_p90'].values, nan=4.0), 1).tolist()
 
-        u = pt['u_component_of_wind_10m_p50'].values
-        v = pt['v_component_of_wind_10m_p50'].values
+        u = nan_to_num(pt['u_component_of_wind_10m_p50'].values, nan=0.0)
+        v = nan_to_num(pt['v_component_of_wind_10m_p50'].values, nan=0.0)
         wdir = round((180 + rad2deg(arctan2(u, v))) % 360, 0).astype(int).tolist()
 
-        rad_p50 = round(pt['surface_solar_radiation_downwards_1hr_p50'].values / 3600.0, 0).tolist()
-        cld_p50 = round(pt['total_cloud_cover_p50'].values * 100, 0).tolist()
+        rad_p50 = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values / 3600.0, nan=0.0), 0).tolist()
+        cld_p50 = round(nan_to_num(pt['total_cloud_cover_p50'].values * 100, nan=50.0), 0).tolist()
 
         resultado['estaciones'][k] = {
             'info': info,
@@ -398,7 +411,7 @@ if __name__ == '__main__':
 
     # 1. Precipitación (mm/h)
     print('  - Renderizando frames de precipitación...', flush=True)
-    ppt_arr = latest['total_precipitation_1hr_p50'].isel(lead_time=slice(0, n_frames)).values
+    ppt_arr = nan_to_num(latest['total_precipitation_1hr_p50'].isel(lead_time=slice(0, n_frames)).values, nan=0.0)
     cmap_ppt = plt.get_cmap('turbo')
     for i in range(n_frames):
         data = flipud(ppt_arr[i])
@@ -411,7 +424,7 @@ if __name__ == '__main__':
 
     # 2. Temperatura (°C)
     print('  - Renderizando frames de temperatura...', flush=True)
-    t2m_arr = latest['temperature_2m_p50'].isel(lead_time=slice(0, n_frames)).values - 273.15
+    t2m_arr = nan_to_num(latest['temperature_2m_p50'].isel(lead_time=slice(0, n_frames)).values - 273.15, nan=20.0)
     cmap_t2m = plt.get_cmap('RdYlBu_r')
     for i in range(n_frames):
         data = flipud(t2m_arr[i])
@@ -423,7 +436,7 @@ if __name__ == '__main__':
 
     # 3. Viento (m/s)
     print('  - Renderizando frames de viento...', flush=True)
-    wspd_arr = latest['wind_speed_10m_p50'].isel(lead_time=slice(0, n_frames)).values
+    wspd_arr = nan_to_num(latest['wind_speed_10m_p50'].isel(lead_time=slice(0, n_frames)).values, nan=0.0)
     cmap_wspd = plt.get_cmap('viridis')
     for i in range(n_frames):
         data = flipud(wspd_arr[i])
