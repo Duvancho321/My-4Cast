@@ -3,12 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.3.0"
+__version__: "0.4.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-11-04][Duvan]: Selección de corrida completa más reciente y sanitización anti-NaN en JSON.
+    - [2026-11-04][Duvan]: Paleta oficial radar CMAP_PPT, escala x1000 mm/h, y 360 horas de frames espaciales.
 """
 
 from sys import path
@@ -18,6 +18,7 @@ from os import makedirs
 from json import dump
 from PIL import Image
 import matplotlib.pyplot as plt
+from src.paletas import CMAP_PPT, NORM_PPT
 from numpy import arctan2, clip, datetime64, flipud, isnan, nan_to_num, rad2deg, round, timedelta64, uint8
 from xarray import open_zarr
 
@@ -354,7 +355,7 @@ if __name__ == '__main__':
         'lead_hours': lead_horas,
         'valid_hl': valid_hl,
         'bounds': [[-5.0, -85.0], [16.5, -60.0]],
-        'frame_hours': 72,
+        'frame_hours': 360,
         'regiones': {
             'nacional': {'nombre': 'Colombia (Nacional)', 'centro': [4.5, -73.5], 'zoom': 6},
             'santander': {'nombre': 'Santander (Vélez & Guavatá)', 'centro': [6.4, -73.4], 'zoom': 8},
@@ -377,9 +378,10 @@ if __name__ == '__main__':
         t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values - 273.15, nan=15.0), 1).tolist()
         t2m_p90 = round(nan_to_num(pt['temperature_2m_p90'].values - 273.15, nan=25.0), 1).tolist()
 
-        ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values, nan=0.0), 2).tolist()
-        ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values, nan=0.0), 2).tolist()
-        ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values, nan=0.0), 2).tolist()
+        # Multiplicar por 1000 para convertir metros a milímetros de precipitación (mm/h)
+        ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values * 1000.0, nan=0.0), 2).tolist()
+        ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values * 1000.0, nan=0.0), 2).tolist()
+        ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values * 1000.0, nan=0.0), 2).tolist()
 
         wspd_p50 = round(nan_to_num(pt['wind_speed_10m_p50'].values, nan=2.0), 1).tolist()
         wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values, nan=1.0), 1).tolist()
@@ -405,26 +407,25 @@ if __name__ == '__main__':
         dump(resultado, f, ensure_ascii=False)
     print(f'✓ JSON guardado en: {ruta_json}', flush=True)
 
-    #%% GENERACIÓN DE FRAMES ESPACIALES (0-72h)
-    print('\nGenerando frames espaciales optimizados (72 horas)...', flush=True)
-    n_frames = 72
+    #%% GENERACIÓN DE FRAMES ESPACIALES (0-360h / 15 DÍAS)
+    n_frames = 360
+    print(f'\nGenerando frames espaciales optimizados ({n_frames} horas / 15 días)...', flush=True)
 
-    # 1. Precipitación (mm/h)
-    print('  - Renderizando frames de precipitación...', flush=True)
-    ppt_arr = nan_to_num(latest['total_precipitation_1hr_p50'].isel(lead_time=slice(0, n_frames)).values, nan=0.0)
-    cmap_ppt = plt.get_cmap('turbo')
+    # 1. Precipitación (mm/h con paleta oficial CMAP_PPT y NORM_PPT)
+    print('  - Renderizando 360 frames de precipitación...', flush=True)
+    ppt_arr = nan_to_num(latest['total_precipitation_1hr_p50'].values * 1000.0, nan=0.0)
     for i in range(n_frames):
         data = flipud(ppt_arr[i])
-        norm = clip(data / 25.0, 0, 1)
-        rgba = cmap_ppt(norm)
-        rgba[data < 0.15, 3] = 0.0
-        rgba[data >= 0.15, 3] = 0.75
+        norm_val = NORM_PPT(data)
+        rgba = CMAP_PPT(norm_val)
+        rgba[data < 0.2, 3] = 0.0
+        rgba[data >= 0.2, 3] = 0.85
         img = Image.fromarray((rgba * 255).astype(uint8))
         img.save(f'{dir_frames}/precipitacion_{i+1:03d}.png', optimize=True)
 
     # 2. Temperatura (°C)
-    print('  - Renderizando frames de temperatura...', flush=True)
-    t2m_arr = nan_to_num(latest['temperature_2m_p50'].isel(lead_time=slice(0, n_frames)).values - 273.15, nan=20.0)
+    print('  - Renderizando 360 frames de temperatura...', flush=True)
+    t2m_arr = nan_to_num(latest['temperature_2m_p50'].values - 273.15, nan=20.0)
     cmap_t2m = plt.get_cmap('RdYlBu_r')
     for i in range(n_frames):
         data = flipud(t2m_arr[i])
@@ -435,8 +436,8 @@ if __name__ == '__main__':
         img.save(f'{dir_frames}/temperatura_{i+1:03d}.png', optimize=True)
 
     # 3. Viento (m/s)
-    print('  - Renderizando frames de viento...', flush=True)
-    wspd_arr = nan_to_num(latest['wind_speed_10m_p50'].isel(lead_time=slice(0, n_frames)).values, nan=0.0)
+    print('  - Renderizando 360 frames de viento...', flush=True)
+    wspd_arr = nan_to_num(latest['wind_speed_10m_p50'].values, nan=0.0)
     cmap_wspd = plt.get_cmap('viridis')
     for i in range(n_frames):
         data = flipud(wspd_arr[i])
@@ -447,4 +448,4 @@ if __name__ == '__main__':
         img = Image.fromarray((rgba * 255).astype(uint8))
         img.save(f'{dir_frames}/viento_{i+1:03d}.png', optimize=True)
 
-    print('✓ Todos los frames generados exitosamente.', flush=True)
+    print(f'✓ Todos los {n_frames * 3} frames generados exitosamente.', flush=True)
