@@ -71,9 +71,15 @@ for run_id in runs_nov:
         req_meta = Request(url_api, headers=headers)
         with urlopen(req_meta) as resp:
             data_rel = loads(resp.read().decode())
-    except Exception as e:
-        print(f'Release {tag_rel} aun no disponible o pendiente de procesamiento: {e}', flush=True)
-        continue
+    except Exception:
+        url_api = f'https://api.github.com/repos/{repo_owner}/{repo_name}/releases/tags/colombia-wn3-latest'
+        try:
+            req_meta = Request(url_api, headers=headers)
+            with urlopen(req_meta) as resp:
+                data_rel = loads(resp.read().decode())
+        except Exception as e:
+            print(f'Release {tag_rel} aun no disponible: {e}', flush=True)
+            continue
 
     assets = [a for a in data_rel.get('assets', []) if a.get('name', '').startswith('colombia_part_')]
     assets.sort(key=lambda x: x['name'])
