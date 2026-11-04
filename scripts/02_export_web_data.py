@@ -420,7 +420,7 @@ if __name__ == '__main__':
         rgba[data < 0.15, 3] = 0.0
         rgba[data >= 0.15, 3] = 0.75
         img = Image.fromarray((rgba * 255).astype(uint8))
-        img.save(f'{dir_frames}/precipitacion_{i+1}.png', optimize=True)
+        img.save(f'{dir_frames}/precipitacion_{i+1:03d}.png', optimize=True)
 
     # 2. Temperatura (°C)
     print('  - Renderizando frames de temperatura...', flush=True)
@@ -432,7 +432,7 @@ if __name__ == '__main__':
         rgba = cmap_t2m(norm)
         rgba[:, :, 3] = 0.60
         img = Image.fromarray((rgba * 255).astype(uint8))
-        img.save(f'{dir_frames}/temperatura_{i+1}.png', optimize=True)
+        img.save(f'{dir_frames}/temperatura_{i+1:03d}.png', optimize=True)
 
     # 3. Viento (m/s)
     print('  - Renderizando frames de viento...', flush=True)
@@ -445,6 +445,6 @@ if __name__ == '__main__':
         rgba[data < 1.0, 3] = 0.0
         rgba[data >= 1.0, 3] = 0.70
         img = Image.fromarray((rgba * 255).astype(uint8))
-        img.save(f'{dir_frames}/viento_{i+1}.png', optimize=True)
+        img.save(f'{dir_frames}/viento_{i+1:03d}.png', optimize=True)
 
     print('✓ Todos los frames generados exitosamente.', flush=True)
