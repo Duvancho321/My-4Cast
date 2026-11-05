@@ -462,7 +462,7 @@ def procesar_mlwp_noaa(model_id, cfg):
     v100     = nan_to_num(v100_raw[:, ::-1, :], nan=0.0).astype(float32) if v100_raw is not None else v10
     w100     = hypot(u100, v100)
     ceros    = zeros(t2m_k.shape, dtype=float32)
-    ppt_m    = ((nan_to_num(apcp_raw[:, ::-1, :], nan=0.0) / 6.0) / 1000.0).astype(float32) if apcp_raw is not None else ceros
+    ppt_m    = (nan_to_num(apcp_raw[:, ::-1, :], nan=0.0) / 6.0).astype(float32) if apcp_raw is not None else ceros
 
     n_pasos  = t2m_k.shape[0]
     leads_td = [timedelta64((i + 1) * 6, 'h') for i in range(n_pasos)]
