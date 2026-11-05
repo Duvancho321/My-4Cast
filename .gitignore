@@ -36,3 +36,5 @@ vault/
 AGENTS.md
 GEMINI.md
 .git-private/
+client_secret*.json
+token_drive.json

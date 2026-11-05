@@ -24,18 +24,31 @@ from google.oauth2.credentials import Credentials
 FOLDER_ROOT_ID = '1zsEhI-CnExH7RGM0qi-y1zTGPj9pAF45'
 DIR_ANIM       = '/mnt/datos/dnieves/WN3/animations'
 RUTA_ZARR      = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
+TOKEN_FILE     = '/home/dnieves/Documentos/My-4Cast/token_drive.json'
+CLIENT_SECRET  = '/home/dnieves/Documentos/My-4Cast/client_secret.json'
 SCOPES         = ['https://www.googleapis.com/auth/drive']
 
 def obtener_servicio_drive():
-    creds, _ = default(scopes=SCOPES)
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
+    creds = None
+    if exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+        else:
+            raise RuntimeError(f'Token no válido o no encontrado en {TOKEN_FILE}. Ejecuta scripts/auth_drive.py primero.')
     return build('drive', 'v3', credentials=creds)
 
 def obtener_o_crear_carpeta(service, nombre, parent_id):
     query = f"'{parent_id}' in parents and name = '{nombre}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-    res = service.files().list(q=query, fields='files(id, name)').execute()
+    res = service.files().list(
+        q=query,
+        fields='files(id, name)',
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
     files = res.get('files', [])
     if files:
         return files[0]['id']
@@ -44,13 +57,18 @@ def obtener_o_crear_carpeta(service, nombre, parent_id):
         'mimeType': 'application/vnd.google-apps.folder',
         'parents': [parent_id]
     }
-    carpeta = service.files().create(body=meta, fields='id').execute()
+    carpeta = service.files().create(body=meta, fields='id', supportsAllDrives=True).execute()
     return carpeta.get('id')
 
 def subir_o_actualizar_archivo(service, ruta_local, parent_id, nombre_destino):
     media = MediaFileUpload(ruta_local, mimetype='video/mp4', resumable=True)
     query = f"'{parent_id}' in parents and name = '{nombre_destino}' and trashed = false"
-    res = service.files().list(q=query, fields='files(id, name)').execute()
+    res = service.files().list(
+        q=query,
+        fields='files(id, name)',
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
     files = res.get('files', [])
 
     if files:
@@ -58,7 +76,8 @@ def subir_o_actualizar_archivo(service, ruta_local, parent_id, nombre_destino):
         actualizado = service.files().update(
             fileId=file_id,
             media_body=media,
-            fields='id, name, size'
+            fields='id, name, size',
+            supportsAllDrives=True
         ).execute()
         print(f"  [✓ Actualizado] {nombre_destino} ({int(actualizado.get('size', 0)) / 1e6:.1f} MB)", flush=True)
         return actualizado.get('id')
@@ -70,7 +89,8 @@ def subir_o_actualizar_archivo(service, ruta_local, parent_id, nombre_destino):
         creado = service.files().create(
             body=meta,
             media_body=media,
-            fields='id, name, size'
+            fields='id, name, size',
+            supportsAllDrives=True
         ).execute()
         print(f"  [✓ Subido] {nombre_destino} ({int(creado.get('size', 0)) / 1e6:.1f} MB)", flush=True)
         return creado.get('id')
