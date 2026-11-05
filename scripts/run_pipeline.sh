@@ -33,11 +33,16 @@ if [ $ESTADO -eq 0 ]; then
     git commit -m "chore: auto-update forecast $(date '+%Y-%m-%d %H:%M')" || true
     git push origin main
     
-    # 4. Generación opcional de videos MP4 para redes / reportes
-    echo "Generando videos mp4 de respaldo..."
+    # 4. Generación de videos MP4 para redes y WhatsApp
+    echo "Generando videos mp4 para redes y WhatsApp..."
     $PYTHON "$DIR_PROYECTO/scripts/01_animate_ppt.py"
     $PYTHON "$DIR_PROYECTO/scripts/01_animate_temp.py"
     $PYTHON "$DIR_PROYECTO/scripts/01_animate_radiation.py"
+
+    # 5. Sincronización automática de animaciones WhatsApp hacia Google Drive
+    echo "Sincronizando animaciones a Google Drive (actual e histórico)..."
+    $PYTHON "$DIR_PROYECTO/scripts/03_upload_drive.py" || echo "Aviso: Falló la subida a Drive, verificar credenciales."
+
     echo "Pipeline completado con éxito."
 elif [ $ESTADO -eq 10 ]; then
     echo "No hay corridas nuevas en GCS. Se omite la generación gráfica."
