@@ -22,14 +22,16 @@ from os.path import exists
 from json import dump, load
 from xarray import open_zarr
 from pandas import to_datetime
-from src.paletas import cmap_ppt, cmap_temp, cmap_viento, norm_ppt, norm_temp, norm_viento
+from src.paletas import cmap_nubosidad, cmap_ppt, cmap_radiacion, cmap_temp, cmap_viento, norm_nubosidad, norm_ppt, norm_radiacion, norm_temp, norm_viento
 from numpy import arctan2, cos, cumsum, deg2rad, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y RUTAS
-ruta_zarr  = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
-dir_sal    = '/mnt/datos/dnieves/WN3/web_data'
-dir_frames = f'{dir_sal}/frames'
-ruta_json  = f'{dir_sal}/latest_weather.json'
+salto_vec   = 6
+ruta_zarr   = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
+dir_sal     = '/mnt/datos/dnieves/WN3/web_data'
+dir_frames  = f'{dir_sal}/frames'
+ruta_json   = f'{dir_sal}/latest_weather.json'
+ruta_viento = f'{dir_sal}/wind_vectors.json'
 makedirs(dir_sal, exist_ok=True)
 makedirs(dir_frames, exist_ok=True)
 
@@ -454,24 +456,33 @@ if __name__ == '__main__':
 
         pt = latest.sel(lat_0p1=lat_t, lon_0p1=lon_t, method='nearest')
 
-        t2m_p50 = round(nan_to_num(pt['temperature_2m_p50'].values - 273.15, nan=20.0), 1).tolist()
-        t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values - 273.15, nan=15.0), 1).tolist()
-        t2m_p90 = round(nan_to_num(pt['temperature_2m_p90'].values - 273.15, nan=25.0), 1).tolist()
+        t2m_p50 = round(nan_to_num(pt['temperature_2m_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
+        t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
+        t2m_p90 = round(nan_to_num(pt['temperature_2m_p90'].values.astype(float) - 273.15, nan=25.0), 1).tolist()
 
-        ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values * 1000.0, nan=0.0), 2).tolist()
-        ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values * 1000.0, nan=0.0), 2).tolist()
-        ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values * 1000.0, nan=0.0), 2).tolist()
+        ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
+        ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
+        ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
 
-        wspd_p50 = round(nan_to_num(pt['wind_speed_10m_p50'].values, nan=2.0), 1).tolist()
-        wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values, nan=1.0), 1).tolist()
-        wspd_p90 = round(nan_to_num(pt['wind_speed_10m_p90'].values, nan=4.0), 1).tolist()
+        wspd_p50 = round(nan_to_num(pt['wind_speed_10m_p50'].values.astype(float), nan=2.0), 1).tolist()
+        wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values.astype(float), nan=1.0), 1).tolist()
+        wspd_p90 = round(nan_to_num(pt['wind_speed_10m_p90'].values.astype(float), nan=4.0), 1).tolist()
 
-        u = nan_to_num(pt['u_component_of_wind_10m_p50'].values, nan=0.0)
-        v = nan_to_num(pt['v_component_of_wind_10m_p50'].values, nan=0.0)
+        u = nan_to_num(pt['u_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
+        v = nan_to_num(pt['v_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
         wdir = round((180 + rad2deg(arctan2(u, v))) % 360, 0).astype(int).tolist()
 
-        rad_p50 = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values / 3600.0, nan=0.0), 0).tolist()
-        cld_p50 = round(nan_to_num(pt['total_cloud_cover_p50'].values * 100, nan=50.0), 0).tolist()
+        rad_p50   = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values.astype(float) / 3600.0, nan=0.0), 0).astype(int).tolist()
+        cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist()
+        cldl_p50  = round(nan_to_num(pt['low_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
+        cldm_p50  = round(nan_to_num(pt['medium_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
+        cldh_p50  = round(nan_to_num(pt['high_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
+        imerg_p50 = round(nan_to_num(pt['imerg_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
+        exptp_p50 = round(nan_to_num(pt['experimental_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
+        w100_p50  = round(nan_to_num(pt['wind_speed_100m_p50'].values.astype(float), nan=2.0), 1).tolist()
+        u100      = nan_to_num(pt['u_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
+        v100      = nan_to_num(pt['v_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
+        wdir100   = round((180 + rad2deg(arctan2(u100, v100))) % 360, 0).astype(int).tolist()
 
         omega   = deg2rad(15.0 * ((utc_hour + info['lon'] / 15.0) % 24 - 12.0))
         lat_rad = deg2rad(info['lat'])
@@ -489,57 +500,74 @@ if __name__ == '__main__':
                 'acumulada': round(cumsum(ppt_p50), 2).tolist(),
                 'acumulada_p90': round(cumsum(ppt_p90), 2).tolist()
             },
+            'precipitacion_imerg': {'p50': imerg_p50},
+            'precipitacion_exp': {'p50': exptp_p50},
             'viento': {'p10': wspd_p10, 'p50': wspd_p50, 'p90': wspd_p90, 'dir': wdir},
+            'viento_100m': {'p50': w100_p50, 'dir': wdir100},
             'radiacion_solar': {'p50': rad_p50, 'teorica': rad_toa},
-            'nubosidad': {'p50': cld_p50}
+            'nubosidad': {'p50': cld_p50},
+            'nubosidad_baja': {'p50': cldl_p50},
+            'nubosidad_media': {'p50': cldm_p50},
+            'nubosidad_alta': {'p50': cldh_p50}
         }
 
     resultado['puntos'] = resultado['estaciones']
     prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
-        dump(resultado, f, ensure_ascii=False)
+        dump(resultado, f, ensure_ascii=False, separators=(',', ':'))
     print(f'✓ JSON guardado en: {ruta_json}', flush=True)
 
+    #%% EXPORTACIÓN DE MALLA VECTORIAL DE VIENTO (10M Y 100M) PARA SUPERPOSICIÓN CARTOGRÁFICA
+    print('Exportando malla vectorial de viento (10m y 100m)...', flush=True)
+    vec_data = {
+        'init_utc': init_utc_str,
+        'lats': round(latest.lat_0p1.values[::salto_vec].astype(float), 2).tolist(),
+        'lons': round(latest.lon_0p1.values[::salto_vec].astype(float) - 360.0, 2).tolist(),
+        'u10': round(nan_to_num(latest['u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
+        'v10': round(nan_to_num(latest['v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
+        'u100': round(nan_to_num(latest['u_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
+        'v100': round(nan_to_num(latest['v_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+    }
+    with open(ruta_viento, 'w', encoding='utf-8') as fv:
+        dump(vec_data, fv, separators=(',', ':'))
+    print(f'✓ Malla de vectores guardada en: {ruta_viento}', flush=True)
+
     #%% GENERACIÓN DE FRAMES ESPACIALES (0-360h / 15 DÍAS) CON PALETAS OFICIALES
-    if prev_init == init_utc_str and exists(f'{dir_frames}/viento_360.png') and exists(f'{dir_frames}/precipitacion_360.png'):
-        print('✓ Frames espaciales (1080) ya existen en disco para esta corrida. Omitiendo regeneración.', flush=True)
+    capas_cfg = [
+        ('precipitacion',       'total_precipitation_1hr_p50',              1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
+        ('precipitacion_imerg', 'imerg_tp_1hr_p50',                         1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
+        ('precipitacion_exp',   'experimental_tp_1hr_p50',                  1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
+        ('temperatura',         'temperature_2m_p50',                       1.0,    -273.15, cmap_temp,      norm_temp,      None, 0.72),
+        ('viento',              'wind_speed_10m_p50',                       1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
+        ('viento_100m',         'wind_speed_100m_p50',                      1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
+        ('radiacion',           'surface_solar_radiation_downwards_1hr_p50', 1/3600, 0.0,    cmap_radiacion, norm_radiacion, 50.0, 0.82),
+        ('nubosidad_total',     'total_cloud_cover_p50',                    100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
+        ('nubosidad_baja',      'low_cloud_cover_p50',                      100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
+        ('nubosidad_media',     'medium_cloud_cover_p50',                   100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
+        ('nubosidad_alta',      'high_cloud_cover_p50',                     100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
+    ]
+
+    if prev_init == init_utc_str and all(exists(f'{dir_frames}/{c[0]}_360.png') for c in capas_cfg):
+        print(f'✓ Frames espaciales ({len(capas_cfg) * 360}) ya existen en disco para esta corrida. Omitiendo regeneración.', flush=True)
     else:
         n_frames = 360
-        print(f'\nGenerando 1080 frames con paletas científicas (src/paletas.py)...', flush=True)
+        print(f'\nGenerando {len(capas_cfg) * n_frames} frames con paletas científicas (src/paletas.py)...', flush=True)
+        for prefijo, var_zarr, factor, offset, cmap_fn, norm_fn, umbral, opacidad in capas_cfg:
+            if prev_init == init_utc_str and exists(f'{dir_frames}/{prefijo}_360.png'):
+                print(f'  - Saltando {prefijo} (360 frames ya existen para esta corrida)...', flush=True)
+                continue
+            print(f'  - Renderizando 360 frames de {prefijo} ({var_zarr})...', flush=True)
+            arr_val = nan_to_num(latest[var_zarr].values * factor + offset, nan=0.0)
+            for i in range(n_frames):
+                data     = flipud(arr_val[i])
+                norm_val = norm_fn(data)
+                rgba     = cmap_fn(norm_val)
+                if umbral is not None:
+                    rgba[data < umbral, 3]  = 0.0
+                    rgba[data >= umbral, 3] = opacidad
+                else:
+                    rgba[:, :, 3] = opacidad
+                img = Image.fromarray((rgba * 255).astype(uint8))
+                img.save(f'{dir_frames}/{prefijo}_{i+1:03d}.png', optimize=True)
 
-        # 1. Precipitación Horaria (mm/h con CMAP_PPT y NORM_PPT)
-        print('  - Renderizando 360 frames de precipitación...', flush=True)
-        ppt_arr = nan_to_num(latest['total_precipitation_1hr_p50'].values * 1000.0, nan=0.0)
-        for i in range(n_frames):
-            data = flipud(ppt_arr[i])
-            norm_val = norm_ppt(data)
-            rgba = cmap_ppt(norm_val)
-            rgba[data < 0.1, 3] = 0.0
-            rgba[data >= 0.1, 3] = 0.85
-            img = Image.fromarray((rgba * 255).astype(uint8))
-            img.save(f'{dir_frames}/precipitacion_{i+1:03d}.png', optimize=True)
-
-        # 2. Temperatura a 2m (°C con CMAP_TEMP y NORM_TEMP)
-        print('  - Renderizando 360 frames de temperatura...', flush=True)
-        t2m_arr = nan_to_num(latest['temperature_2m_p50'].values - 273.15, nan=20.0)
-        for i in range(n_frames):
-            data = flipud(t2m_arr[i])
-            norm_val = norm_temp(data)
-            rgba = cmap_temp(norm_val)
-            rgba[:, :, 3] = 0.72
-            img = Image.fromarray((rgba * 255).astype(uint8))
-            img.save(f'{dir_frames}/temperatura_{i+1:03d}.png', optimize=True)
-
-        # 3. Intensidad de Viento a 10m (m/s con CMAP_VIENTO y NORM_VIENTO)
-        print('  - Renderizando 360 frames de viento...', flush=True)
-        wspd_arr = nan_to_num(latest['wind_speed_10m_p50'].values, nan=0.0)
-        for i in range(n_frames):
-            data = flipud(wspd_arr[i])
-            norm_val = norm_viento(data)
-            rgba = cmap_viento(norm_val)
-            rgba[data < 0.5, 3] = 0.0
-            rgba[data >= 0.5, 3] = 0.80
-            img = Image.fromarray((rgba * 255).astype(uint8))
-            img.save(f'{dir_frames}/viento_{i+1:03d}.png', optimize=True)
-
-        print(f'✓ Todos los {n_frames * 3} frames generados exitosamente con paletas exactas.', flush=True)
+        print(f'✓ Todos los {len(capas_cfg) * n_frames} frames generados exitosamente con paletas exactas.', flush=True)

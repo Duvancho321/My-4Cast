@@ -98,6 +98,23 @@ cmap_radiacion    = ListedColormap(colores_radiacion)
 cmap_radiacion.set_under('white')
 norm_radiacion    = BoundaryNorm(niveles_radiacion, ncolors=len(colores_radiacion), extend='max')
 
+#%% 5. COBERTURA NUBOSA [%]
+colores_nubosidad = [
+    '#0284c7',  # 10 - 20 %: Cielo mayormente despejado
+    '#0ea5e9',  # 20 - 30 %: Nubosidad escasa
+    '#38bdf8',  # 30 - 40 %: Nubosidad dispersa
+    '#7dd3fc',  # 40 - 50 %: Parcialmente nublado
+    '#bae6fd',  # 50 - 60 %: Nubosidad moderada
+    '#cbd5e1',  # 60 - 70 %: Mayormente nublado
+    '#e2e8f0',  # 70 - 80 %: Cubierto estratiforme
+    '#f1f5f9',  # 80 - 90 %: Cubierto denso
+    '#ffffff',  # 90 - 100 %: Cobertura total / Tope convectivo
+]
+niveles_nubosidad = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
+cmap_nubosidad    = ListedColormap(colores_nubosidad)
+cmap_nubosidad.set_under('white')
+norm_nubosidad    = BoundaryNorm(niveles_nubosidad, ncolors=len(colores_nubosidad), extend='neither')
+
 #%% ALIASES DE RETROCOMPATIBILIDAD
 CMAP_PPT    = cmap_ppt
 NORM_PPT    = norm_ppt
