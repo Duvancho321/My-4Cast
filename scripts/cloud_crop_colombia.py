@@ -11,17 +11,17 @@ __changues__:
     - [2026-11-03][Duvan]: Worker de recorte para 15 variables fisicas seleccionadas.
 """
 
-from sys import argv, exit
-from json import dump, loads
 from os import getenv, link
+from sys import argv, exit
 from os.path import exists
+from json import dump, loads
+from xarray import open_zarr
+from obstore.store import GCSStore
 from shutil import make_archive, rmtree
+from zarr.storage import ObjectStore
+from numpy import isnan, timedelta64
 from urllib.request import Request, urlopen
 from datetime import datetime, timedelta, timezone
-from obstore.store import GCSStore
-from zarr.storage import ObjectStore
-from numpy import timedelta64
-from xarray import open_zarr
 
 #%% CONFIGURACIÓN DE PARÁMETROS
 lat_min    = -5.0
@@ -64,7 +64,11 @@ def obtener_dataset_disponible():
         r_id   = f'{f_str}_{h_corr}hr_01_preds'
         pfx    = f'weathernext_3_0_0_statistics/zarr/2026_to_present/{r_id}/predictions.zarr'
         try:
-            ds = open_zarr(ObjectStore(GCSStore(bucket=bucket_wn3, prefix=pfx)))
+            ds      = open_zarr(ObjectStore(GCSStore(bucket=bucket_wn3, prefix=pfx)))
+            val_fin = ds['temperature_2m_p50'].sel(lat_0p1=4.6, lon_0p1=286.0, method='nearest').isel(lead_time=-1).values
+            if isnan(val_fin).any():
+                print(f'Corrida {r_id} aun incompleta en GCS (360h NaN), evaluando ciclo previo...', flush=True)
+                continue
             return r_id, ds
         except Exception:
             continue
@@ -82,8 +86,9 @@ if __name__ == '__main__':
             req_chk = Request(url_chk, headers=hdrs_gh)
             with urlopen(req_chk) as resp_c:
                 rel_c = loads(resp_c.read().decode())
-            if run_id in rel_c.get('name', '') or run_id in rel_c.get('body', ''):
-                print(f'Corrida {run_id} ya se encuentra publicada en colombia-wn3-latest. Se omite re-procesamiento.', flush=True)
+            tam_rel = sum(a.get('size', 0) for a in rel_c.get('assets', []) if a.get('name', '').startswith('colombia_part_'))
+            if (run_id in rel_c.get('name', '') or run_id in rel_c.get('body', '')) and tam_rel > 4000000000:
+                print(f'Corrida {run_id} completa ({tam_rel / 1e9:.2f} GB) ya se encuentra publicada en colombia-wn3-latest. Se omite re-procesamiento.', flush=True)
                 exit(0)
         except Exception:
             pass

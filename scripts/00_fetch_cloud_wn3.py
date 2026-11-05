@@ -19,8 +19,9 @@ from json import loads
 from shutil import rmtree
 from os.path import exists
 from zipfile import ZipFile
-from urllib.request import Request, urlopen
+from numpy import isnan
 from xarray import open_zarr
+from urllib.request import Request, urlopen
 from src.descarga import apilar_corrida_zarr
 
 #%% CONFIGURACIÓN DE PARÁMETROS
@@ -69,18 +70,30 @@ if not assets:
     print('No se encontraron partes de recorte en el release.', flush=True)
     exit(10)
 
+tam_total = sum(a.get('size', 0) for a in assets)
+if tam_total < 4000000000:
+    print(f'Release actual ({tam_total / 1e9:.2f} GB) incompleto (<360h). Esperando recorte completo...', flush=True)
+    exit(10)
+
+headers_dl = headers.copy()
+if token_gh:
+    headers_dl['Accept'] = 'application/octet-stream'
+
 manifest_asset = next((a for a in data_rel.get('assets', []) if a.get('name') == 'manifest.json'), None)
 if manifest_asset and exists(ruta_zarr):
     try:
         url_man = manifest_asset['url'] if token_gh else manifest_asset['browser_download_url']
-        req_man = Request(url_man, headers=headers)
+        req_man = Request(url_man, headers=headers_dl)
         with urlopen(req_man) as resp_m:
             man_data = loads(resp_m.read().decode())
-        init_cand = man_data.get('init_time')
+        init_cand = str(man_data.get('init_time'))[:19]
         ds_loc    = open_zarr(ruta_zarr)
-        if str(init_cand) in [str(t) for t in ds_loc.init_time.values]:
-            print(f'Corrida {init_cand} ya se encuentra integrada en el almacén local.', flush=True)
-            exit(10)
+        for idx_l in range(len(ds_loc.init_time) - 1, -1, -1):
+            if str(ds_loc.init_time.values[idx_l])[:19] == init_cand:
+                muestra = ds_loc['temperature_2m_p50'].isel(init_time=idx_l, lat_0p1=100, lon_0p1=100).values
+                if not isnan(muestra).any() and len(muestra) == 360:
+                    print(f'Corrida {init_cand} completa (360h) ya se encuentra en el almacén local.', flush=True)
+                    exit(10)
     except Exception:
         pass
 
@@ -88,9 +101,6 @@ if exists(ruta_tmp):
     remove(ruta_tmp)
 
 #%% DESCARGA Y ENSAMBLADO DE PARTES
-headers_dl = headers.copy()
-if token_gh:
-    headers_dl['Accept'] = 'application/octet-stream'
 
 with open(ruta_tmp, 'wb') as f_out:
     for a in assets:

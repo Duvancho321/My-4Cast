@@ -26,10 +26,11 @@ if [ $ESTADO -eq 0 ]; then
     
     # 3. Despliegue automático al repositorio web (Cloudflare Pages)
     echo "Sincronizando y publicando en My-4Cast-Web..."
-    cp -ru "$DIR_DATOS_WEB"/* "$DIR_WEB/data/"
     cd "$DIR_WEB"
+    git pull --rebase origin main || true
+    cp -rf "$DIR_DATOS_WEB"/* "$DIR_WEB/data/"
     git add data/
-    git commit -m "chore: auto-update forecast $(date '+%Y-%m-%d %H:%M')"
+    git commit -m "chore: auto-update forecast $(date '+%Y-%m-%d %H:%M')" || true
     git push origin main
     
     # 4. Generación opcional de videos MP4 para redes / reportes
