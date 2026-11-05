@@ -53,8 +53,8 @@ if [ $ESTADO_WN3 -eq 0 ] || [ $ESTADO_MOD -eq 0 ]; then
         $PYTHON "$DIR_PROYECTO/scripts/01_animate_radiation.py" ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,noaa_gfs,dwd_icon
     fi
 
-    # 6. Sincronización automática a Google Drive (WN3 con histórico; otras fuentes solo actual)
-    echo "Sincronizando animaciones a Google Drive (estructura WN3 vs OTRAS_FUENTES)..."
+    # 6. Sincronización automática a Google Drive (actual e histórico para todas las fuentes)
+    echo "Sincronizando animaciones a Google Drive (estructura actual/ e historico/ por modelo)..."
     $PYTHON "$DIR_PROYECTO/scripts/03_upload_drive.py" all || echo "Aviso: Falló la subida a Drive, verificar credenciales."
 
     echo "Pipeline completado con éxito."

@@ -1,14 +1,15 @@
 """
-03_upload_drive.py — Sincronización automática de animaciones operativas hacia Google Drive con una carpeta dedicada por cada fuente.
+03_upload_drive.py — Sincronización automática de animaciones operativas hacia Google Drive con estructura actual e histórico para todas las fuentes.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.3.0"
+__version__: "0.4.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-11-05][Duvan]: Creación de una carpeta independiente en Drive por cada una de las 11 fuentes (WN3 con histórico; las demás efímeras).
+    - [2026-11-05][Duvan]: Estructura dual actual/ e historico/<fecha_tag>/ para las 11 fuentes en Drive (datos crudos efímeros, animaciones preservadas).
+    - [2026-11-05][Duvan]: Creación de una carpeta independiente en Drive por cada una de las 11 fuentes.
 """
 
 from sys import argv, path
@@ -60,6 +61,18 @@ def obtener_o_crear_carpeta(service, nombre, parent_id):
     }
     carpeta = service.files().create(body=meta, fields='id', supportsAllDrives=True).execute()
     return carpeta.get('id')
+
+def limpiar_archivos_raiz_fuente(service, id_fuente):
+    query = f"'{id_fuente}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
+    res   = service.files().list(
+        q=query,
+        fields='files(id, name)',
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
+    for f in res.get('files', []):
+        service.files().delete(fileId=f['id'], supportsAllDrives=True).execute()
+        print(f"    [✕ Limpieza raíz] {f['name']}", flush=True)
 
 def subir_o_actualizar_archivo(service, ruta_local, parent_id, nombre_destino):
     media = MediaFileUpload(ruta_local, mimetype='video/mp4', resumable=True)
@@ -123,17 +136,17 @@ if __name__ == '__main__':
         fecha_tag = str(init_hl)[:10].replace('-', '') + f"_{str(init_hl)[11:13]}HL"
         print(f"  Corrida activa: {fecha_tag} ({len(videos)} videos)", flush=True)
 
-        if cfg['almacenamiento'] == 'canonico_historico':
-            id_actual = obtener_o_crear_carpeta(service, 'actual', id_fuente)
-            id_hist   = obtener_o_crear_carpeta(service, 'historico', id_fuente)
-            id_corr   = obtener_o_crear_carpeta(service, fecha_tag, id_hist)
-            for v in videos:
-                nom_limpio = basename(v).replace('_whatsapp', '')
-                subir_o_actualizar_archivo(service, v, id_actual, nom_limpio)
-                subir_o_actualizar_archivo(service, v, id_corr, f'{fecha_tag}_{nom_limpio}')
-        else:
-            for v in videos:
-                nom_limpio = basename(v).replace('_whatsapp', '')
-                subir_o_actualizar_archivo(service, v, id_fuente, nom_limpio)
+        # Depurar archivos sueltos en raíz de la carpeta de la fuente
+        limpiar_archivos_raiz_fuente(service, id_fuente)
+
+        # Estructura dual: actual/ (última corrida) e historico/<fecha_tag>/ (registro temporal inmutable)
+        id_actual = obtener_o_crear_carpeta(service, 'actual', id_fuente)
+        id_hist   = obtener_o_crear_carpeta(service, 'historico', id_fuente)
+        id_corr   = obtener_o_crear_carpeta(service, fecha_tag, id_hist)
+
+        for v in videos:
+            nom_limpio = basename(v).replace('_whatsapp', '')
+            subir_o_actualizar_archivo(service, v, id_actual, nom_limpio)
+            subir_o_actualizar_archivo(service, v, id_corr, f'{fecha_tag}_{nom_limpio}')
 
     print('\n✓ Sincronización multimodelo a Google Drive finalizada.', flush=True)
