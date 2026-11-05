@@ -93,8 +93,9 @@ jobs:
           if ls colombia_*.zip 1> /dev/null 2>&1; then
             RUN_TAG="colombia-models-latest"
             TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-            gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+            gh release delete "$RUN_TAG" --repo "${{ github.repository }}" --yes --cleanup-tag 2>/dev/null || true
             gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
+              --repo "${{ github.repository }}" \
               --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
               --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
           fi
