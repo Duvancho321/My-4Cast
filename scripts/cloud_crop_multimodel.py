@@ -1,0 +1,477 @@
+"""
+cloud_crop_multimodel.py — Recorte efímero en la nube de modelos abiertos (GFS, IFS, AIFS, CHIRPS-GEFS, ICON, GraphCast) para Colombia.
+
+__author__: "Duvan Nieves"
+__copyright__: "Universidad Nacional de Colombia"
+__version__: "0.1.0"
+__maintaner__: "Duvan Nieves Ruiz"
+__email__: "dnieves@unal.edu.co"
+__status__: "Developer"
+__changues__:
+    - [2026-11-05][Duvan]: Creación de worker multimodelo efímero estandarizado al esquema de Colombia.
+"""
+
+from sys import argv
+from json import dump
+from bz2 import decompress
+from fsspec import filesystem
+from scipy.spatial import cKDTree
+from rasterio import open as rio_open
+from shutil import make_archive, rmtree
+from gribberish import parse_grib_array
+from rasterio.windows import from_bounds
+from urllib.request import Request, urlopen
+from icechunk import Repository, s3_storage
+from datetime import datetime, timedelta, timezone
+from xarray import DataArray, Dataset, open_dataset, open_zarr
+from numpy import arange, array, column_stack, flipud, float32, hypot, isnan, meshgrid, nan_to_num, nanpercentile, timedelta64, where, zeros
+
+#%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
+lat_min = -5.0
+lat_max = 16.5
+lon_min = -85.0
+lon_max = -60.0
+filtro  = argv[1] if len(argv) > 1 else 'all'
+
+catalogo_modelos = {
+    'noaa_gfs': {
+        'nombre': 'NOAA GFS Forecast',
+        'organizacion': 'NOAA / NCEP',
+        'tipo': 'Físico Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 1,
+        'horizonte_h': 384,
+        'bucket': 'dynamical-noaa-gfs',
+        'prefix': 'noaa-gfs-forecast/v0.2.7.icechunk',
+        'zarr_url': 'https://data.dynamical.org/noaa/gfs/forecast/latest.zarr',
+        'ensamble': False
+    },
+    'ecmwf_ifs': {
+        'nombre': 'ECMWF IFS ENS 15-Day (Open)',
+        'organizacion': 'ECMWF',
+        'tipo': 'Físico Ensamble (51 miembros)',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 3,
+        'horizonte_h': 360,
+        'bucket': 'dynamical-ecmwf-ifs-ens',
+        'prefix': 'ecmwf-ifs-ens-forecast-15-day-0-25-degree/v0.1.0.icechunk',
+        'zarr_url': 'https://data.dynamical.org/ecmwf/ifs-ens/forecast-15-day-0-25-degree/latest.zarr',
+        'ensamble': True
+    },
+    'ecmwf_aifs_ens': {
+        'nombre': 'ECMWF AIFS ENS 15-Day',
+        'organizacion': 'ECMWF',
+        'tipo': 'IA Ensamble (51 miembros)',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 360,
+        'bucket': 'dynamical-ecmwf-aifs-ens',
+        'prefix': 'ecmwf-aifs-ens-forecast/v0.1.0.icechunk',
+        'ensamble': True
+    },
+    'ecmwf_aifs_single': {
+        'nombre': 'ECMWF AIFS Single 15-Day',
+        'organizacion': 'ECMWF',
+        'tipo': 'IA Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 360,
+        'bucket': 'dynamical-ecmwf-aifs-single',
+        'prefix': 'ecmwf-aifs-single-forecast/v0.1.0.icechunk',
+        'zarr_url': 'https://data.dynamical.org/ecmwf/aifs-single/forecast/latest.zarr',
+        'ensamble': False
+    },
+    'chirps_gefs': {
+        'nombre': 'UCSB CHIRPS-GEFS v3 16-Day',
+        'organizacion': 'UCSB Climate Hazards Center',
+        'tipo': 'Híbrido Satélite + GEFS',
+        'resolucion': '0.05° (~5 km)',
+        'paso_h': 24,
+        'horizonte_h': 384,
+        'ensamble': False
+    },
+    'dwd_icon': {
+        'nombre': 'DWD ICON Global',
+        'organizacion': 'Deutscher Wetterdienst (DWD)',
+        'tipo': 'Físico Determinista',
+        'resolucion': '0.125° (~13 km)',
+        'paso_h': 3,
+        'horizonte_h': 180,
+        'ensamble': False
+    },
+    'graphcast_gfs': {
+        'nombre': 'GraphCast GFS (NOAA MLWP)',
+        'organizacion': 'Google DeepMind / NOAA OAR',
+        'tipo': 'IA Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 240,
+        'ensamble': False
+    }
+}
+
+#%% EMPAQUETADO ESTANDARIZADO AL ESQUEMA CANÓNICO DE COLOMBIA
+def guardar_zarr_estandar(model_id, init_dt64, leads_td64, lats_asc, lons_360, campos, attrs_extra):
+    coords = {
+        'init_time': array([init_dt64], dtype='datetime64[ns]'),
+        'lead_time': array(leads_td64, dtype='timedelta64[ns]'),
+        'lat_0p1':   array(lats_asc, dtype=float32),
+        'lon_0p1':   array(lons_360, dtype=float32)
+    }
+    dims_4d    = ('init_time', 'lead_time', 'lat_0p1', 'lon_0p1')
+    data_vars  = {k: DataArray(v[None, ...].astype(float32), coords=coords, dims=dims_4d) for k, v in campos.items()}
+    attrs_limp = {k: str(v) if isinstance(v, bool) else v for k, v in attrs_extra.items()}
+    ds_out     = Dataset(data_vars, coords=coords, attrs=attrs_limp)
+    ds_out['init_time'].encoding['units'] = 'hours since 2026-01-01 00:00:00'
+    ds_out['init_time'].encoding['dtype'] = 'int64'
+
+    ruta_zarr = f'colombia_{model_id}.zarr'
+    ruta_zip  = f'colombia_{model_id}'
+    rmtree(ruta_zarr, ignore_errors=True)
+    ds_out.to_zarr(ruta_zarr, mode='w')
+    make_archive(ruta_zip, 'zip', ruta_zarr)
+    rmtree(ruta_zarr, ignore_errors=True)
+    return f'{ruta_zip}.zip'
+
+#%% RECORTE DE MODELOS DYNAMICAL.ORG / EARTHMOVER (GFS, IFS ENS, AIFS ENS, AIFS SINGLE)
+def procesar_dynamical(model_id, cfg):
+    try:
+        print(f'\n[{model_id}] Abriendo Icechunk S3: s3://{cfg["bucket"]}/{cfg["prefix"]}...', flush=True)
+        storage = s3_storage(bucket=cfg['bucket'], prefix=cfg['prefix'], region='us-west-2', anonymous=True)
+        repo    = Repository.open(storage)
+        session = repo.readonly_session('main')
+        ds      = open_zarr(session.store, chunks=None)
+    except Exception:
+        if 'zarr_url' not in cfg:
+            raise
+        print(f'[{model_id}] Fallback a Zarr v3 HTTPS: {cfg["zarr_url"]}...', flush=True)
+        ds = open_zarr(cfg['zarr_url'], chunks=None)
+
+    init_idx = -1
+    for idx in [-1, -2, -3, -4]:
+        muestra = ds['temperature_2m'].isel(init_time=idx, lead_time=-1)
+        if 'ensemble_member' in muestra.dims:
+            muestra = muestra.isel(ensemble_member=0)
+        val_chk = muestra.sel(latitude=4.6, longitude=-74.0, method='nearest').values
+        if not isnan(val_chk).all():
+            init_idx = idx
+            break
+
+    init_val = ds.init_time.values[init_idx]
+    print(f'[{model_id}] Corrida activa seleccionada: {str(init_val)[:19]} UTC', flush=True)
+
+    vars_req = [
+        'precipitation_surface',
+        'temperature_2m',
+        'wind_u_10m',
+        'wind_v_10m',
+        'wind_u_100m',
+        'wind_v_100m',
+        'downward_short_wave_radiation_flux_surface',
+        'total_cloud_cover_atmosphere'
+    ]
+    sub = ds[vars_req].isel(init_time=init_idx, lead_time=slice(1, None)).sel(
+        latitude=slice(lat_max, lat_min),
+        longitude=slice(lon_min, lon_max)
+    ).load()
+
+    sub      = sub.isel(latitude=slice(None, None, -1))
+    lats_asc = sub.latitude.values.astype(float32)
+    lons_360 = (sub.longitude.values + 360.0).astype(float32)
+    leads_td = sub.lead_time.values
+
+    ppt_mm_h = nan_to_num(sub['precipitation_surface'].values, nan=0.0) * 3600.0
+    ppt_m    = ppt_mm_h / 1000.0
+    t2m_k    = nan_to_num(sub['temperature_2m'].values, nan=20.0) + 273.15
+    u10      = nan_to_num(sub['wind_u_10m'].values, nan=0.0)
+    v10      = nan_to_num(sub['wind_v_10m'].values, nan=0.0)
+    w10      = hypot(u10, v10)
+    u100     = nan_to_num(sub['wind_u_100m'].values, nan=0.0)
+    v100     = nan_to_num(sub['wind_v_100m'].values, nan=0.0)
+    w100     = hypot(u100, v100)
+    rad_j    = nan_to_num(sub['downward_short_wave_radiation_flux_surface'].values, nan=0.0) * 3600.0
+    cld_frac = nan_to_num(sub['total_cloud_cover_atmosphere'].values, nan=50.0) / 100.0
+
+    if cfg['ensamble']:
+        ppt_p10, ppt_p50, ppt_p90 = nanpercentile(ppt_m, [10, 50, 90], axis=1)
+        t2m_p10, t2m_p50, t2m_p90 = nanpercentile(t2m_k, [10, 50, 90], axis=1)
+        w10_p10, w10_p50, w10_p90 = nanpercentile(w10, [10, 50, 90], axis=1)
+        u10_p50  = nanpercentile(u10, 50, axis=1)
+        v10_p50  = nanpercentile(v10, 50, axis=1)
+        u100_p50 = nanpercentile(u100, 50, axis=1)
+        v100_p50 = nanpercentile(v100, 50, axis=1)
+        w100_p50 = nanpercentile(w100, 50, axis=1)
+        rad_p50  = nanpercentile(rad_j, 50, axis=1)
+        cld_p50  = nanpercentile(cld_frac, 50, axis=1)
+    else:
+        ppt_p10 = ppt_p50 = ppt_p90 = ppt_m
+        t2m_p10 = t2m_p50 = t2m_p90 = t2m_k
+        w10_p10 = w10_p50 = w10_p90 = w10
+        u10_p50, v10_p50   = u10, v10
+        u100_p50, v100_p50 = u100, v100
+        w100_p50           = w100
+        rad_p50            = rad_j
+        cld_p50            = cld_frac
+
+    campos = {
+        'total_precipitation_1hr_p10':              ppt_p10,
+        'total_precipitation_1hr_p50':              ppt_p50,
+        'total_precipitation_1hr_p90':              ppt_p90,
+        'temperature_2m_p10':                       t2m_p10,
+        'temperature_2m_p50':                       t2m_p50,
+        'temperature_2m_p90':                       t2m_p90,
+        'u_component_of_wind_10m_p50':              u10_p50,
+        'v_component_of_wind_10m_p50':              v10_p50,
+        'wind_speed_10m_p10':                       w10_p10,
+        'wind_speed_10m_p50':                       w10_p50,
+        'wind_speed_10m_p90':                       w10_p90,
+        'u_component_of_wind_100m_p50':             u100_p50,
+        'v_component_of_wind_100m_p50':             v100_p50,
+        'wind_speed_100m_p50':                      w100_p50,
+        'surface_solar_radiation_downwards_1hr_p50': rad_p50,
+        'total_cloud_cover_p50':                    cld_p50
+    }
+    zip_out = guardar_zarr_estandar(model_id, init_val, leads_td, lats_asc, lons_360, campos, cfg)
+    return {'model_id': model_id, 'init_time': str(init_val)[:19], 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
+#%% RECORTE DE CHIRPS-GEFS V3 (UCSB CHC, 0.05° DIARIO 16 DÍAS)
+def procesar_chirps_gefs(model_id, cfg):
+    print(f'\n[{model_id}] Buscando última corrida diaria en data.chc.ucsb.edu...', flush=True)
+    ahora      = datetime.now(timezone.utc)
+    fecha_base = None
+    for delta_d in range(0, 5):
+        cand  = ahora - timedelta(days=delta_d)
+        u_chk = f'https://data.chc.ucsb.edu/products/CHIRPS-GEFS/v3/daily/global/{cand:%Y/%m/%d}/c3g_{cand:%Y.%m.%d}.tif'
+        try:
+            urlopen(Request(u_chk, method='HEAD'), timeout=10)
+            fecha_base = cand.replace(hour=0, minute=0, second=0, microsecond=0)
+            break
+        except Exception:
+            continue
+
+    if fecha_base is None:
+        raise RuntimeError('No se encontró corrida reciente de CHIRPS-GEFS v3.')
+
+    print(f'[{model_id}] Corrida activa: {fecha_base:%Y-%m-%d}', flush=True)
+    capas_ppt = []
+    leads_td  = []
+    lats_asc  = None
+    lons_360  = None
+
+    for d_idx in range(16):
+        f_val = fecha_base + timedelta(days=d_idx)
+        url_t = f'/vsicurl/https://data.chc.ucsb.edu/products/CHIRPS-GEFS/v3/daily/global/{fecha_base:%Y/%m/%d}/c3g_{f_val:%Y.%m.%d}.tif'
+        with rio_open(url_t) as src:
+            win = from_bounds(lon_min, lat_min, lon_max, lat_max, src.transform)
+            arr = src.read(1, window=win).astype(float32)
+            arr[arr < 0] = 0.0
+            arr_asc      = flipud(arr)
+            if lats_asc is None:
+                h_w, w_w = arr_asc.shape
+                lats_asc = arange(lat_min, lat_max, (lat_max - lat_min) / h_w, dtype=float32)[:h_w]
+                lons_360 = (arange(lon_min, lon_max, (lon_max - lon_min) / w_w, dtype=float32)[:w_w] + 360.0)
+            capas_ppt.append(arr_asc / 1000.0)
+            leads_td.append(timedelta64((d_idx + 1) * 24, 'h'))
+
+    ppt_arr  = array(capas_ppt, dtype=float32)
+    ceros    = zeros(ppt_arr.shape, dtype=float32)
+    temp_def = ceros + 293.15
+    campos   = {
+        'total_precipitation_1hr_p10':              ppt_arr,
+        'total_precipitation_1hr_p50':              ppt_arr,
+        'total_precipitation_1hr_p90':              ppt_arr,
+        'temperature_2m_p10':                       temp_def,
+        'temperature_2m_p50':                       temp_def,
+        'temperature_2m_p90':                       temp_def,
+        'u_component_of_wind_10m_p50':              ceros,
+        'v_component_of_wind_10m_p50':              ceros,
+        'wind_speed_10m_p10':                       ceros,
+        'wind_speed_10m_p50':                       ceros,
+        'wind_speed_10m_p90':                       ceros,
+        'u_component_of_wind_100m_p50':             ceros,
+        'v_component_of_wind_100m_p50':             ceros,
+        'wind_speed_100m_p50':                      ceros,
+        'surface_solar_radiation_downwards_1hr_p50': ceros,
+        'total_cloud_cover_p50':                    ceros
+    }
+    init_dt64 = array([fecha_base.strftime('%Y-%m-%dT00:00:00')], dtype='datetime64[ns]')[0]
+    zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
+    return {'model_id': model_id, 'init_time': str(init_dt64)[:19], 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
+#%% RECORTE DE DWD ICON GLOBAL (MALLA ICOSAÉDRICA -> 0.125° COLOMBIA)
+def procesar_dwd_icon(model_id, cfg):
+    print(f'\n[{model_id}] Consultando última corrida en opendata.dwd.de...', flush=True)
+    ahora     = datetime.now(timezone.utc)
+    ciclo_sel = None
+    fecha_str = None
+    for delta_h in [4, 10, 16, 22]:
+        t_ev  = ahora - timedelta(hours=delta_h)
+        c_str = '12' if t_ev.hour >= 12 else '00'
+        f_str = f'{t_ev:%Y%m%d}{c_str}'
+        u_chk = f'https://opendata.dwd.de/weather/nwp/icon/grib/{c_str}/t_2m/icon_global_icosahedral_single-level_{f_str}_180_T_2M.grib2.bz2'
+        try:
+            urlopen(Request(u_chk, method='HEAD'), timeout=10)
+            ciclo_sel = c_str
+            fecha_str = f_str
+            break
+        except Exception:
+            continue
+
+    if ciclo_sel is None:
+        raise RuntimeError('No se encontró corrida completa de DWD ICON Global.')
+
+    print(f'[{model_id}] Corrida activa: {fecha_str}Z', flush=True)
+    u_lat = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/clat/icon_global_icosahedral_time-invariant_{fecha_str}_CLAT.grib2.bz2'
+    u_lon = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/clon/icon_global_icosahedral_time-invariant_{fecha_str}_CLON.grib2.bz2'
+    clat  = parse_grib_array(decompress(urlopen(u_lat, timeout=20).read()), 0)
+    clon  = ((parse_grib_array(decompress(urlopen(u_lon, timeout=20).read()), 0) + 180.0) % 360.0) - 180.0
+    mask  = (clat >= lat_min - 0.5) & (clat <= lat_max + 0.5) & (clon >= lon_min - 0.5) & (clon <= lon_max + 0.5)
+    idx_c = where(mask)[0]
+
+    lats_asc     = arange(lat_min, lat_max + 0.001, 0.125, dtype=float32)
+    lons_reg     = arange(lon_min, lon_max + 0.001, 0.125, dtype=float32)
+    lons_360     = (lons_reg + 360.0).astype(float32)
+    lon_g, lat_g = meshgrid(lons_reg, lats_asc)
+    tree         = cKDTree(column_stack([clat[idx_c], clon[idx_c]]))
+    _, nn_idx    = tree.query(column_stack([lat_g.ravel(), lon_g.ravel()]))
+    map_idx      = idx_c[nn_idx]
+    shape_2d     = lat_g.shape
+
+    horas_paso = list(range(3, 181, 3))
+    leads_td   = [timedelta64(h, 'h') for h in horas_paso]
+
+    def descargar_serie_icon(var_dir, var_mayus):
+        serie = []
+        for h in horas_paso:
+            u_g = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/{var_dir}/icon_global_icosahedral_single-level_{fecha_str}_{h:03d}_{var_mayus}.grib2.bz2'
+            raw = parse_grib_array(decompress(urlopen(u_g, timeout=20).read()), 0)
+            serie.append(raw[map_idx].reshape(shape_2d).astype(float32))
+        return array(serie, dtype=float32)
+
+    tot_prec            = descargar_serie_icon('tot_prec', 'TOT_PREC')
+    ppt_paso            = zeros(tot_prec.shape, dtype=float32)
+    ppt_paso[0]         = tot_prec[0] / 3.0
+    ppt_paso[1:]        = (tot_prec[1:] - tot_prec[:-1]) / 3.0
+    ppt_paso[ppt_paso < 0] = 0.0
+    ppt_m               = ppt_paso / 1000.0
+
+    t2m_k    = descargar_serie_icon('t_2m', 'T_2M')
+    u10      = descargar_serie_icon('u_10m', 'U_10M')
+    v10      = descargar_serie_icon('v_10m', 'V_10M')
+    w10      = hypot(u10, v10)
+    cld_frac = descargar_serie_icon('clct', 'CLCT') / 100.0
+    asob_s   = descargar_serie_icon('asob_s', 'ASOB_S') * 3600.0
+
+    campos = {
+        'total_precipitation_1hr_p10':              ppt_m,
+        'total_precipitation_1hr_p50':              ppt_m,
+        'total_precipitation_1hr_p90':              ppt_m,
+        'temperature_2m_p10':                       t2m_k,
+        'temperature_2m_p50':                       t2m_k,
+        'temperature_2m_p90':                       t2m_k,
+        'u_component_of_wind_10m_p50':              u10,
+        'v_component_of_wind_10m_p50':              v10,
+        'wind_speed_10m_p10':                       w10,
+        'wind_speed_10m_p50':                       w10,
+        'wind_speed_10m_p90':                       w10,
+        'u_component_of_wind_100m_p50':             u10,
+        'v_component_of_wind_100m_p50':             v10,
+        'wind_speed_100m_p50':                      w10,
+        'surface_solar_radiation_downwards_1hr_p50': asob_s,
+        'total_cloud_cover_p50':                    cld_frac
+    }
+    init_iso  = f'{fecha_str[:4]}-{fecha_str[4:6]}-{fecha_str[6:8]}T{ciclo_sel}:00:00'
+    init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
+    zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
+    return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
+#%% RECORTE DE GRAPHCAST GFS (NOAA OAR MLWP S3, 0.25° 240H)
+def procesar_graphcast_gfs(model_id, cfg):
+    print(f'\n[{model_id}] Consultando última corrida en s3://noaa-oar-mlwp-data/GRAP_v100_GFS...', flush=True)
+    ahora    = datetime.now(timezone.utc)
+    url_nc   = None
+    init_iso = None
+    for delta_h in [4, 10, 16, 22, 28]:
+        t_ev   = ahora - timedelta(hours=delta_h)
+        c_str  = '12' if t_ev.hour >= 12 else '00'
+        u_cand = f'https://noaa-oar-mlwp-data.s3.amazonaws.com/GRAP_v100_GFS/{t_ev:%Y}/{t_ev:%m%d}/GRAP_v100_GFS_{t_ev:%Y%m%d}{c_str}_f000_f240_06.nc'
+        try:
+            urlopen(Request(u_cand, method='HEAD'), timeout=10)
+            url_nc   = u_cand
+            init_iso = f'{t_ev:%Y-%m-%d}T{c_str}:00:00'
+            break
+        except Exception:
+            continue
+
+    if url_nc is None:
+        raise RuntimeError('No se encontró corrida reciente de GraphCast GFS en NOAA OAR.')
+
+    print(f'[{model_id}] Descargando ventana de Colombia desde {url_nc}...', flush=True)
+    fs = filesystem('https', block_size=1048576)
+    with fs.open(url_nc) as f_obj:
+        ds          = open_dataset(f_obj, engine='h5netcdf')
+        lon_360_min = 360.0 + lon_min
+        lon_360_max = 360.0 + lon_max
+        sub = ds[['apcp', 't2', 'u10', 'v10']].isel(time=slice(1, None)).sel(
+            latitude=slice(lat_max, lat_min),
+            longitude=slice(lon_360_min, lon_360_max)
+        ).load()
+
+    sub      = sub.isel(latitude=slice(None, None, -1))
+    lats_asc = sub.latitude.values.astype(float32)
+    lons_360 = sub.longitude.values.astype(float32)
+    n_pasos  = len(sub.time)
+    leads_td = [timedelta64((i + 1) * 6, 'h') for i in range(n_pasos)]
+
+    ppt_m = (nan_to_num(sub['apcp'].values, nan=0.0) / 6.0) / 1000.0
+    t2m_k = nan_to_num(sub['t2'].values, nan=293.15)
+    u10   = nan_to_num(sub['u10'].values, nan=0.0)
+    v10   = nan_to_num(sub['v10'].values, nan=0.0)
+    w10   = hypot(u10, v10)
+    ceros = zeros(ppt_m.shape, dtype=float32)
+
+    campos = {
+        'total_precipitation_1hr_p10':              ppt_m,
+        'total_precipitation_1hr_p50':              ppt_m,
+        'total_precipitation_1hr_p90':              ppt_m,
+        'temperature_2m_p10':                       t2m_k,
+        'temperature_2m_p50':                       t2m_k,
+        'temperature_2m_p90':                       t2m_k,
+        'u_component_of_wind_10m_p50':              u10,
+        'v_component_of_wind_10m_p50':              v10,
+        'wind_speed_10m_p10':                       w10,
+        'wind_speed_10m_p50':                       w10,
+        'wind_speed_10m_p90':                       w10,
+        'u_component_of_wind_100m_p50':             u10,
+        'v_component_of_wind_100m_p50':             v10,
+        'wind_speed_100m_p50':                      w10,
+        'surface_solar_radiation_downwards_1hr_p50': ceros,
+        'total_cloud_cover_p50':                    ceros
+    }
+    init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
+    zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
+    return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
+#%% EJECUCIÓN PRINCIPAL DEL WORKER MULTIMODELO
+if __name__ == '__main__':
+    manifest = {'updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
+    for m_id, cfg in catalogo_modelos.items():
+        if filtro != 'all' and m_id not in filtro.split(','):
+            continue
+        try:
+            if 'bucket' in cfg:
+                info_m = procesar_dynamical(m_id, cfg)
+            elif m_id == 'chirps_gefs':
+                info_m = procesar_chirps_gefs(m_id, cfg)
+            elif m_id == 'dwd_icon':
+                info_m = procesar_dwd_icon(m_id, cfg)
+            elif m_id == 'graphcast_gfs':
+                info_m = procesar_graphcast_gfs(m_id, cfg)
+            manifest['models'][m_id] = info_m
+            print(f'[✓ {m_id}] Empaquetado exitoso en {info_m["zip"]} ({info_m["steps"]} pasos).', flush=True)
+        except Exception as e:
+            print(f'[! {m_id}] Error al procesar fuente: {e}', flush=True)
+
+    with open('models_manifest.json', 'w', encoding='utf-8') as fm:
+        dump(manifest, fm, indent=2, ensure_ascii=False)
+    print('\nManifiesto multimodelo guardado en models_manifest.json.', flush=True)

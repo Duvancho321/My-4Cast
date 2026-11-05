@@ -1,0 +1,55 @@
+name: Multi-Model Colombia Ephemeral Cropper
+
+on:
+  schedule:
+    # Cada 6 horas a minuto 45 UTC (cubre corridas 00, 06, 12, 18 UTC de GFS, IFS, AIFS, ICON, CHIRPS-GEFS, GraphCast)
+    - cron: '45 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Modelos a recortar (all o lista separada por comas: noaa_gfs,ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,chirps_gefs,dwd_icon,graphcast_gfs)'
+        required: false
+        default: 'all'
+
+permissions:
+  contents: write
+
+jobs:
+  crop_multimodel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 (required for Icechunk v2.3+)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install xarray zarr icechunk numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
+
+      - name: Crop Colombia domain across open forecast models
+        id: crop_models
+        run: |
+          python scripts/cloud_crop_multimodel.py "${{ github.event.inputs.models || 'all' }}"
+          if ls colombia_*.zip 1> /dev/null 2>&1; then
+            echo "has_models=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_models=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish ephemeral Colombia crops to GitHub Release (colombia-models-latest)
+        if: steps.crop_models.outputs.has_models == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_TAG="colombia-models-latest"
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
+            --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
+            --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS). Exclusivamente para visualizacion; sin acumulacion historica."

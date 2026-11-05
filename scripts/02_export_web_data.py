@@ -13,7 +13,7 @@ __changues__:
     - [2026-11-04][Duvan]: Radiación teórica ToA y PPT acumulada.
 """
 
-from sys import path
+from sys import argv, path
 path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 
 from PIL import Image
@@ -22,18 +22,13 @@ from os.path import exists
 from json import dump, load
 from xarray import open_zarr
 from pandas import to_datetime
+from src.modelos import dominios_plataforma, modelos_colombia
 from src.paletas import cmap_nubosidad, cmap_ppt, cmap_radiacion, cmap_temp, cmap_viento, norm_nubosidad, norm_ppt, norm_radiacion, norm_temp, norm_viento
-from numpy import arctan2, cos, cumsum, deg2rad, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8
+from numpy import arctan2, cos, cumsum, deg2rad, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y RUTAS
-salto_vec   = 6
-ruta_zarr   = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
-dir_sal     = '/mnt/datos/dnieves/WN3/web_data'
-dir_frames  = f'{dir_sal}/frames'
-ruta_json   = f'{dir_sal}/latest_weather.json'
-ruta_viento = f'{dir_sal}/wind_vectors.json'
-makedirs(dir_sal, exist_ok=True)
-makedirs(dir_frames, exist_ok=True)
+dir_web_base = '/mnt/datos/dnieves/WN3/web_data'
+makedirs(dir_web_base, exist_ok=True)
 
 #%% CATÁLOGO DE MUNICIPIOS Y ESTACIONES PRIORITARIAS (SIN EMOJIS, FORMATO CIENTÍFICO)
 estaciones = {
@@ -399,40 +394,61 @@ estaciones = {
     }
 }
 
-#%% EXTRACCIÓN Y SERIALIZACIÓN
-if __name__ == '__main__':
-    print('Abriendo dataset canónico...', flush=True)
+#%% EXTRACCIÓN Y SERIALIZACIÓN POR FUENTE DE PRONÓSTICO
+def exportar_modelo_web(model_id, cfg):
+    ruta_zarr = cfg['ruta_zarr']
+    if not exists(ruta_zarr):
+        return None
+
+    salto_vec   = cfg['salto_web']
+    dir_sal     = dir_web_base if model_id == 'wn3' else f'{dir_web_base}/models/{model_id}'
+    dir_frames  = f'{dir_sal}/frames'
+    ruta_json   = f'{dir_sal}/latest_weather.json'
+    ruta_viento = f'{dir_sal}/wind_vectors.json'
+    makedirs(dir_sal, exist_ok=True)
+    makedirs(dir_frames, exist_ok=True)
+
+    print(f'\n[{model_id.upper()}] Abriendo dataset en {ruta_zarr}...', flush=True)
     ds = open_zarr(ruta_zarr)
 
     latest = None
     for idx in range(len(ds.init_time) - 1, -1, -1):
-        cand = ds.isel(init_time=idx)
-        sample = cand['temperature_2m_p50'].isel(lat_0p1=100, lon_0p1=100).values
-        if not isnan(sample).any() and len(sample) == 360:
-            latest = cand
-            print(f"Seleccionada corrida completa: {str(cand.init_time.values)[:19]} UTC (índice {idx})", flush=True)
-            break
+        cand   = ds.isel(init_time=idx)
+        sample = cand['temperature_2m_p50'].isel(lat_0p1=len(cand.lat_0p1) // 2, lon_0p1=len(cand.lon_0p1) // 2).values
+        if not isnan(sample).all():
+            if model_id != 'wn3' or (not isnan(sample).any() and len(sample) == 360):
+                latest = cand
+                print(f'[{model_id.upper()}] Seleccionada corrida: {str(cand.init_time.values)[:19]} UTC (índice {idx})', flush=True)
+                break
 
     if latest is None:
-        raise ValueError('No se encontró ninguna corrida con 360 horas completas.')
+        print(f'[{model_id.upper()}] No se encontró corrida válida.', flush=True)
+        return None
 
     init_utc_raw = latest.init_time.values
     init_utc_str = str(init_utc_raw)[:19] + ' UTC'
     init_hl_raw  = init_utc_raw - timedelta64(5, 'h')
     init_hl_str  = str(init_hl_raw)[:19] + ' HL (Colombia)'
 
-    lead_horas = [int(i + 1) for i in range(len(latest.lead_time))]
+    lead_horas = [int(td / timedelta64(1, 'h')) for td in latest.lead_time.values]
     valid_hl   = [str(init_hl_raw + timedelta64(h, 'h'))[:16] for h in lead_horas]
+    n_frames   = len(lead_horas)
 
     resultado = {
-        'modelo': 'WeatherNext 3 (Google DeepMind / ECMWF)',
-        'resolucion': '0.1° (~11 km)',
+        'model_id': model_id,
+        'modelo': cfg['nombre'],
+        'etiqueta_corta': cfg['etiqueta_corta'],
+        'tipo': cfg['tipo'],
+        'almacenamiento': cfg['almacenamiento'],
+        'resolucion': cfg['resolucion'],
+        'paso_h': cfg['paso_h'],
         'init_utc': init_utc_str,
         'init_hl': init_hl_str,
         'lead_hours': lead_horas,
         'valid_hl': valid_hl,
         'bounds': [[-5.0, -85.0], [16.5, -60.0]],
-        'frame_hours': 360,
+        'frame_hours': n_frames,
+        'variables_disponibles': cfg['variables'],
         'regiones': {
             'nacional': {'nombre': 'Colombia (Nacional)', 'centro': [4.5, -73.5], 'zoom': 6},
             'santander': {'nombre': 'Santander (Vélez & Serranía)', 'centro': [6.4, -73.4], 'zoom': 8},
@@ -443,7 +459,7 @@ if __name__ == '__main__':
         'estaciones': {}
     }
 
-    print(f'Extrayendo series de tiempo para {len(estaciones)} municipios...', flush=True)
+    print(f'[{model_id.upper()}] Extrayendo series de tiempo para {len(estaciones)} puntos...', flush=True)
     dts      = to_datetime([init_utc_raw + timedelta64(h, 'h') for h in lead_horas])
     theta_d  = 2 * pi * (dts.day_of_year.values - 1) / 365.0
     rc_dis   = 1.00011 + 0.034221 * cos(theta_d) + 0.00128 * sin(theta_d) + 0.000719 * cos(2 * theta_d) + 0.000077 * sin(2 * theta_d)
@@ -453,8 +469,8 @@ if __name__ == '__main__':
     for k, info in estaciones.items():
         lat_t = info['lat']
         lon_t = 360.0 + info['lon'] if info['lon'] < 0 else info['lon']
-
-        pt = latest.sel(lat_0p1=lat_t, lon_0p1=lon_t, method='nearest')
+        pt    = latest.sel(lat_0p1=lat_t, lon_0p1=lon_t, method='nearest')
+        ceros_pt = zeros(n_frames, dtype=float)
 
         t2m_p50 = round(nan_to_num(pt['temperature_2m_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
         t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
@@ -468,17 +484,17 @@ if __name__ == '__main__':
         wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values.astype(float), nan=1.0), 1).tolist()
         wspd_p90 = round(nan_to_num(pt['wind_speed_10m_p90'].values.astype(float), nan=4.0), 1).tolist()
 
-        u = nan_to_num(pt['u_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
-        v = nan_to_num(pt['v_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
+        u    = nan_to_num(pt['u_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
+        v    = nan_to_num(pt['v_component_of_wind_10m_p50'].values.astype(float), nan=0.0)
         wdir = round((180 + rad2deg(arctan2(u, v))) % 360, 0).astype(int).tolist()
 
         rad_p50   = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values.astype(float) / 3600.0, nan=0.0), 0).astype(int).tolist()
         cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist()
-        cldl_p50  = round(nan_to_num(pt['low_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
-        cldm_p50  = round(nan_to_num(pt['medium_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
-        cldh_p50  = round(nan_to_num(pt['high_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist()
-        imerg_p50 = round(nan_to_num(pt['imerg_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
-        exptp_p50 = round(nan_to_num(pt['experimental_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
+        cldl_p50  = round(nan_to_num(pt['low_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'low_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
+        cldm_p50  = round(nan_to_num(pt['medium_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'medium_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
+        cldh_p50  = round(nan_to_num(pt['high_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'high_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
+        imerg_p50 = round(nan_to_num(pt['imerg_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist() if 'imerg_tp_1hr_p50' in pt else ppt_p50
+        exptp_p50 = round(nan_to_num(pt['experimental_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist() if 'experimental_tp_1hr_p50' in pt else ppt_p50
         w100_p50  = round(nan_to_num(pt['wind_speed_100m_p50'].values.astype(float), nan=2.0), 1).tolist()
         u100      = nan_to_num(pt['u_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
         v100      = nan_to_num(pt['v_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
@@ -489,6 +505,7 @@ if __name__ == '__main__':
         cos_z   = sin(lat_rad) * sin(rc_dec) + cos(lat_rad) * cos(rc_dec) * cos(omega)
         rad_toa = round(maximum(0.0, 1361.0 * rc_dis * cos_z), 0).astype(int).tolist()
 
+        paso_f = float(cfg['paso_h']) if cfg['paso_h'] < 24 else 1.0
         resultado['estaciones'][k] = {
             'info': info,
             'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},
@@ -496,9 +513,9 @@ if __name__ == '__main__':
                 'p10': ppt_p10,
                 'p50': ppt_p50,
                 'p90': ppt_p90,
-                'acumulada_p10': round(cumsum(ppt_p10), 2).tolist(),
-                'acumulada': round(cumsum(ppt_p50), 2).tolist(),
-                'acumulada_p90': round(cumsum(ppt_p90), 2).tolist()
+                'acumulada_p10': round(cumsum(ppt_p10) * paso_f, 2).tolist(),
+                'acumulada': round(cumsum(ppt_p50) * paso_f, 2).tolist(),
+                'acumulada_p90': round(cumsum(ppt_p90) * paso_f, 2).tolist()
             },
             'precipitacion_imerg': {'p50': imerg_p50},
             'precipitacion_exp': {'p50': exptp_p50},
@@ -515,10 +532,9 @@ if __name__ == '__main__':
     prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
         dump(resultado, f, ensure_ascii=False, separators=(',', ':'))
-    print(f'✓ JSON guardado en: {ruta_json}', flush=True)
+    print(f'[{model_id.upper()}] ✓ JSON guardado en: {ruta_json}', flush=True)
 
-    #%% EXPORTACIÓN DE MALLA VECTORIAL DE VIENTO (10M Y 100M) PARA SUPERPOSICIÓN CARTOGRÁFICA
-    print('Exportando malla vectorial de viento (10m y 100m)...', flush=True)
+    #%% EXPORTACIÓN DE MALLA VECTORIAL DE VIENTO (10M Y 100M)
     vec_data = {
         'init_utc': init_utc_str,
         'lats': round(latest.lat_0p1.values[::salto_vec].astype(float), 2).tolist(),
@@ -530,33 +546,30 @@ if __name__ == '__main__':
     }
     with open(ruta_viento, 'w', encoding='utf-8') as fv:
         dump(vec_data, fv, separators=(',', ':'))
-    print(f'✓ Malla de vectores guardada en: {ruta_viento}', flush=True)
 
-    #%% GENERACIÓN DE FRAMES ESPACIALES (0-360h / 15 DÍAS) CON PALETAS OFICIALES
-    capas_cfg = [
+    #%% GENERACIÓN DE FRAMES ESPACIALES CON PALETAS OFICIALES
+    todas_capas = [
         ('precipitacion',       'total_precipitation_1hr_p50',              1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
         ('precipitacion_imerg', 'imerg_tp_1hr_p50',                         1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
         ('precipitacion_exp',   'experimental_tp_1hr_p50',                  1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
         ('temperatura',         'temperature_2m_p50',                       1.0,    -273.15, cmap_temp,      norm_temp,      None, 0.72),
         ('viento',              'wind_speed_10m_p50',                       1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
         ('viento_100m',         'wind_speed_100m_p50',                      1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
-        ('radiacion',           'surface_solar_radiation_downwards_1hr_p50', 1/3600, 0.0,    cmap_radiacion, norm_radiacion, 50.0, 0.82),
+        ('radiacion',           'surface_solar_radiation_downwards_1hr_p50', 1/3600, 0.0,     cmap_radiacion, norm_radiacion, 50.0, 0.82),
         ('nubosidad_total',     'total_cloud_cover_p50',                    100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
         ('nubosidad_baja',      'low_cloud_cover_p50',                      100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
         ('nubosidad_media',     'medium_cloud_cover_p50',                   100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
         ('nubosidad_alta',      'high_cloud_cover_p50',                     100.0,  0.0,     cmap_nubosidad, norm_nubosidad, 10.0, 0.78),
     ]
+    capas_cfg = [c for c in todas_capas if c[0] in cfg['variables'] and c[1] in latest.data_vars]
 
-    if prev_init == init_utc_str and all(exists(f'{dir_frames}/{c[0]}_360.png') for c in capas_cfg):
-        print(f'✓ Frames espaciales ({len(capas_cfg) * 360}) ya existen en disco para esta corrida. Omitiendo regeneración.', flush=True)
+    if prev_init == init_utc_str and all(exists(f'{dir_frames}/{c[0]}_{n_frames:03d}.png') for c in capas_cfg):
+        print(f'[{model_id.upper()}] ✓ Frames espaciales ({len(capas_cfg) * n_frames}) ya existen en disco.', flush=True)
     else:
-        n_frames = 360
-        print(f'\nGenerando {len(capas_cfg) * n_frames} frames con paletas científicas (src/paletas.py)...', flush=True)
+        print(f'[{model_id.upper()}] Generando {len(capas_cfg) * n_frames} frames espaciales...', flush=True)
         for prefijo, var_zarr, factor, offset, cmap_fn, norm_fn, umbral, opacidad in capas_cfg:
-            if prev_init == init_utc_str and exists(f'{dir_frames}/{prefijo}_360.png'):
-                print(f'  - Saltando {prefijo} (360 frames ya existen para esta corrida)...', flush=True)
+            if prev_init == init_utc_str and exists(f'{dir_frames}/{prefijo}_{n_frames:03d}.png'):
                 continue
-            print(f'  - Renderizando 360 frames de {prefijo} ({var_zarr})...', flush=True)
             arr_val = nan_to_num(latest[var_zarr].values * factor + offset, nan=0.0)
             for i in range(n_frames):
                 data     = flipud(arr_val[i])
@@ -570,4 +583,55 @@ if __name__ == '__main__':
                 img = Image.fromarray((rgba * 255).astype(uint8))
                 img.save(f'{dir_frames}/{prefijo}_{i+1:03d}.png', optimize=True)
 
-        print(f'✓ Todos los {len(capas_cfg) * n_frames} frames generados exitosamente con paletas exactas.', flush=True)
+    return {
+        'id': model_id,
+        'nombre': cfg['nombre'],
+        'etiqueta_corta': cfg['etiqueta_corta'],
+        'tipo': cfg['tipo'],
+        'almacenamiento': cfg['almacenamiento'],
+        'resolucion': cfg['resolucion'],
+        'paso_h': cfg['paso_h'],
+        'horizonte_h': cfg['horizonte_h'],
+        'init_utc': init_utc_str,
+        'init_hl': init_hl_str,
+        'n_frames': n_frames,
+        'variables': cfg['variables'],
+        'base_path': 'data' if model_id == 'wn3' else f'data/models/{model_id}'
+    }
+
+if __name__ == '__main__':
+    objetivo        = argv[1] if len(argv) > 1 else 'all'
+    resumen_modelos = {}
+
+    for m_id, cfg in modelos_colombia.items():
+        if objetivo != 'all' and m_id not in objetivo.split(','):
+            continue
+        meta_m = exportar_modelo_web(m_id, cfg)
+        if meta_m:
+            resumen_modelos[m_id] = meta_m
+
+    catalogo_web = {
+        'dominios': dominios_plataforma,
+        'dominio_por_defecto': 'colombia',
+        'modelo_por_defecto': 'wn3',
+        'modelos_colombia': {
+            m_id: resumen_modelos.get(m_id, {
+                'id': m_id,
+                'nombre': cfg['nombre'],
+                'etiqueta_corta': cfg['etiqueta_corta'],
+                'tipo': cfg['tipo'],
+                'almacenamiento': cfg['almacenamiento'],
+                'resolucion': cfg['resolucion'],
+                'paso_h': cfg['paso_h'],
+                'horizonte_h': cfg['horizonte_h'],
+                'disponible': exists(cfg['ruta_zarr']),
+                'variables': cfg['variables'],
+                'base_path': 'data' if m_id == 'wn3' else f'data/models/{m_id}'
+            })
+            for m_id, cfg in modelos_colombia.items()
+        }
+    }
+    ruta_cat = f'{dir_web_base}/models_catalog.json'
+    with open(ruta_cat, 'w', encoding='utf-8') as fc:
+        dump(catalogo_web, fc, indent=2, ensure_ascii=False)
+    print(f'\n✓ Catálogo multimodelo web guardado en: {ruta_cat}', flush=True)
