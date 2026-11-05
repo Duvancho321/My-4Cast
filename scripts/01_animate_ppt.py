@@ -32,9 +32,9 @@ hora_fig  = 12
 ruta_zarr = ('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr' if exists('/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr')
              else ('/mnt/datos/dnieves/WN3/staging/test_ppt_wind_360h.zarr' if exists('/mnt/datos/dnieves/WN3/staging/test_ppt_wind_360h.zarr')
              else '/mnt/datos/dnieves/WN3/raw/colombia_weathernext3.zarr'))
-ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_colombia.png'
-ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_colombia_360h.mp4'
-ruta_wapp = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_whatsapp.mp4'
+ruta_png  = '/mnt/datos/dnieves/WN3/figures/piloto_ppt_viento_colombia.png'
+ruta_mp4  = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_viento_colombia_360h.mp4'
+ruta_wapp = '/mnt/datos/dnieves/WN3/animations/animacion_ppt_viento_whatsapp.mp4'
 
 #%% CARGA DE METADATOS Y MALLA
 ds           = open_zarr(ruta_zarr)

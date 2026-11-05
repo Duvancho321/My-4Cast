@@ -118,20 +118,23 @@ if __name__ == '__main__':
         print('Aviso: No se encontraron archivos *whatsapp*.mp4 en', DIR_ANIM, flush=True)
         exit(0)
 
+    def limpiar_nombre(nombre_archivo):
+        # Quita el sufijo _whatsapp para que el archivo quede limpio en Drive
+        return nombre_archivo.replace('_whatsapp', '')
+
     print(f'Archivos encontrados para sincronizar ({len(archivos_whatsapp)}):', flush=True)
     for f in archivos_whatsapp:
         tam_mb = getsize(f) / 1e6
-        print(f" - {basename(f)} ({tam_mb:.1f} MB)", flush=True)
+        print(f" - {basename(f)} ➔ {limpiar_nombre(basename(f))} ({tam_mb:.1f} MB)", flush=True)
 
     print('\n1. Sincronizando carpeta "actual"...', flush=True)
     for ruta in archivos_whatsapp:
-        nom = basename(ruta)
-        subir_o_actualizar_archivo(service, ruta, id_actual, nom)
+        nom_destino = limpiar_nombre(basename(ruta))
+        subir_o_actualizar_archivo(service, ruta, id_actual, nom_destino)
 
     print(f'\n2. Guardando copia en histórico ("historico/{fecha_tag}")...', flush=True)
     for ruta in archivos_whatsapp:
-        nom = basename(ruta)
-        nom_hist = f"{fecha_tag}_{nom}"
-        subir_o_actualizar_archivo(service, ruta, id_hist_corrida, nom_hist)
+        nom_destino = f"{fecha_tag}_{limpiar_nombre(basename(ruta))}"
+        subir_o_actualizar_archivo(service, ruta, id_hist_corrida, nom_destino)
 
     print('\n✓ Sincronización a Google Drive finalizada exitosamente.', flush=True)
