@@ -3,11 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.6.0"
+__version__: "0.7.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
+    - [2026-11-05][Duvan]: Inclusión de todas las 32 capitales departamentales.
     - [2026-11-04][Duvan]: Paletas científicas y eliminación de emojis.
     - [2026-11-04][Duvan]: Radiación teórica ToA y PPT acumulada.
 """
@@ -40,7 +41,7 @@ estaciones = {
         'lat': 6.0139,
         'lon': -73.6739,
         'altitud': 2050,
-        'tag': 'Sede Principal'
+        'tag': 'Provincia de Vélez'
     },
     'guavata': {
         'nombre': 'Guavatá',
@@ -321,6 +322,78 @@ estaciones = {
         'lon': -69.9406,
         'altitud': 96,
         'tag': 'Trapecio Amazónico'
+    },
+    'florencia': {
+        'nombre': 'Florencia',
+        'depto': 'Caquetá',
+        'lat': 1.6144,
+        'lon': -75.6062,
+        'altitud': 242,
+        'tag': 'Piedemonte Amazónico'
+    },
+    'yopal': {
+        'nombre': 'Yopal',
+        'depto': 'Casanare',
+        'lat': 5.3378,
+        'lon': -72.3959,
+        'altitud': 350,
+        'tag': 'Piedemonte Llanero'
+    },
+    'arauca': {
+        'nombre': 'Arauca',
+        'depto': 'Arauca',
+        'lat': 7.0847,
+        'lon': -70.7591,
+        'altitud': 125,
+        'tag': 'Llanos de Arauca'
+    },
+    'sincelejo': {
+        'nombre': 'Sincelejo',
+        'depto': 'Sucre',
+        'lat': 9.3047,
+        'lon': -75.3978,
+        'altitud': 213,
+        'tag': 'Sabanas de Sucre'
+    },
+    'mocoa': {
+        'nombre': 'Mocoa',
+        'depto': 'Putumayo',
+        'lat': 1.1528,
+        'lon': -76.6528,
+        'altitud': 604,
+        'tag': 'Piedemonte de Putumayo'
+    },
+    'san_jose_guaviare': {
+        'nombre': 'San José del Guaviare',
+        'depto': 'Guaviare',
+        'lat': 2.5729,
+        'lon': -72.6459,
+        'altitud': 175,
+        'tag': 'Puerta de la Amazonía'
+    },
+    'inirida': {
+        'nombre': 'Inírida',
+        'depto': 'Guainía',
+        'lat': 3.8653,
+        'lon': -67.9239,
+        'altitud': 100,
+        'tag': 'Estrella Fluvial de Inírida'
+    },
+    'mitu': {
+        'nombre': 'Mitú',
+        'depto': 'Vaupés',
+        'lat': 1.2514,
+        'lon': -70.2333,
+        'altitud': 183,
+        'tag': 'Selva del Vaupés'
+    },
+    'puerto_carreno': {
+        'nombre': 'Puerto Carreño',
+        'depto': 'Vichada',
+        'lat': 6.1890,
+        'lon': -67.4859,
+        'altitud': 51,
+        'tag': 'Confluencia Orinoco-Meta'
     }
 }
 
@@ -421,6 +494,7 @@ if __name__ == '__main__':
             'nubosidad': {'p50': cld_p50}
         }
 
+    resultado['puntos'] = resultado['estaciones']
     prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
         dump(resultado, f, ensure_ascii=False)
