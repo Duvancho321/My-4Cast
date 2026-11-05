@@ -392,7 +392,16 @@ def procesar_dwd_icon(model_id, cfg):
     v10      = descargar_serie_icon('v_10m', 'V_10M')
     w10      = hypot(u10, v10)
     cld_frac = descargar_serie_icon('clct', 'CLCT') / 100.0
-    asob_s   = descargar_serie_icon('asob_s', 'ASOB_S') * 3600.0
+    # Radiación global superficial descendente real (GHI = Directa + Difusa):
+    # En DWD OpenData: ASWDIR_S (directa) + ASWDIFD_S (difusa) en W/m2.
+    # ASOB_S era radiación NETA (restando albedo), por eso daba ~530 W/m2 en vez de ~900 W/m2.
+    try:
+        aswdir_s  = descargar_serie_icon('aswdir_s', 'ASWDIR_S')
+        aswdifd_s = descargar_serie_icon('aswdifd_s', 'ASWDIFD_S')
+        rad_ghi_s = (aswdir_s + aswdifd_s) * 3600.0
+    except Exception:
+        # Fallback a ASOB_S si alguna de las componentes no está disponible
+        rad_ghi_s = descargar_serie_icon('asob_s', 'ASOB_S') * 3600.0
 
     campos = {
         'total_precipitation_1hr_p10':              ppt_m,
@@ -409,7 +418,7 @@ def procesar_dwd_icon(model_id, cfg):
         'u_component_of_wind_100m_p50':             u10,
         'v_component_of_wind_100m_p50':             v10,
         'wind_speed_100m_p50':                      w10,
-        'surface_solar_radiation_downwards_1hr_p50': asob_s,
+        'surface_solar_radiation_downwards_1hr_p50': rad_ghi_s,
         'total_cloud_cover_p50':                    cld_frac
     }
     init_iso  = f'{fecha_str[:4]}-{fecha_str[4:6]}-{fecha_str[6:8]}T{ciclo_sel}:00:00'
