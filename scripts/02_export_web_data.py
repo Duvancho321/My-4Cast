@@ -388,7 +388,6 @@ if __name__ == '__main__':
         ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values * 1000.0, nan=0.0), 2).tolist()
         ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values * 1000.0, nan=0.0), 2).tolist()
         ppt_p90 = round(nan_to_num(pt['total_precipitation_1hr_p90'].values * 1000.0, nan=0.0), 2).tolist()
-        ppt_cum = round(nan_to_num(cumsum(pt['total_precipitation_1hr_p50'].values * 1000.0)), 2).tolist()
 
         wspd_p50 = round(nan_to_num(pt['wind_speed_10m_p50'].values, nan=2.0), 1).tolist()
         wspd_p10 = round(nan_to_num(pt['wind_speed_10m_p10'].values, nan=1.0), 1).tolist()
@@ -409,7 +408,14 @@ if __name__ == '__main__':
         resultado['estaciones'][k] = {
             'info': info,
             'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},
-            'precipitacion': {'p10': ppt_p10, 'p50': ppt_p50, 'p90': ppt_p90, 'acumulada': ppt_cum},
+            'precipitacion': {
+                'p10': ppt_p10,
+                'p50': ppt_p50,
+                'p90': ppt_p90,
+                'acumulada_p10': round(cumsum(ppt_p10), 2).tolist(),
+                'acumulada': round(cumsum(ppt_p50), 2).tolist(),
+                'acumulada_p90': round(cumsum(ppt_p90), 2).tolist()
+            },
             'viento': {'p10': wspd_p10, 'p50': wspd_p50, 'p90': wspd_p90, 'dir': wdir},
             'radiacion_solar': {'p50': rad_p50, 'teorica': rad_toa},
             'nubosidad': {'p50': cld_p50}
