@@ -15,10 +15,10 @@ __changues__:
 from sys import path
 path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 
-from json import dump
 from PIL import Image
 from os import makedirs
 from os.path import exists
+from json import dump, load
 from xarray import open_zarr
 from pandas import to_datetime
 from src.paletas import cmap_ppt, cmap_temp, cmap_viento, norm_ppt, norm_temp, norm_viento
@@ -415,13 +415,14 @@ if __name__ == '__main__':
             'nubosidad': {'p50': cld_p50}
         }
 
+    prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
         dump(resultado, f, ensure_ascii=False)
     print(f'✓ JSON guardado en: {ruta_json}', flush=True)
 
     #%% GENERACIÓN DE FRAMES ESPACIALES (0-360h / 15 DÍAS) CON PALETAS OFICIALES
-    if exists(f'{dir_frames}/viento_360.png') and exists(f'{dir_frames}/precipitacion_360.png'):
-        print('✓ Frames espaciales (1080) ya existen en disco. Omitiendo regeneración.', flush=True)
+    if prev_init == init_utc_str and exists(f'{dir_frames}/viento_360.png') and exists(f'{dir_frames}/precipitacion_360.png'):
+        print('✓ Frames espaciales (1080) ya existen en disco para esta corrida. Omitiendo regeneración.', flush=True)
     else:
         n_frames = 360
         print(f'\nGenerando 1080 frames con paletas científicas (src/paletas.py)...', flush=True)
