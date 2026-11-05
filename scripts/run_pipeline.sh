@@ -48,9 +48,9 @@ if [ $ESTADO_WN3 -eq 0 ] || [ $ESTADO_MOD -eq 0 ]; then
 
     if [ $ESTADO_MOD -eq 0 ]; then
         echo "Generando animaciones MP4 efímeras para fuentes externas..."
-        $PYTHON "$DIR_PROYECTO/scripts/01_animate_ppt.py" ecmwf_aifs_ens,ecmwf_aifs_single,ecmwf_ifs,noaa_gfs,dwd_icon,chirps_gefs,graphcast_gfs
-        $PYTHON "$DIR_PROYECTO/scripts/01_animate_temp.py" ecmwf_aifs_ens,ecmwf_aifs_single,ecmwf_ifs,noaa_gfs,dwd_icon,graphcast_gfs
-        $PYTHON "$DIR_PROYECTO/scripts/01_animate_radiation.py" ecmwf_aifs_ens,ecmwf_aifs_single,ecmwf_ifs,noaa_gfs,dwd_icon
+        $PYTHON "$DIR_PROYECTO/scripts/01_animate_ppt.py" ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,noaa_gfs,dwd_icon,chirps_gefs,graphcast_gfs
+        $PYTHON "$DIR_PROYECTO/scripts/01_animate_temp.py" ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,noaa_gfs,dwd_icon,graphcast_gfs,aurora_gfs,fourcastnet_gfs,pangu_gfs
+        $PYTHON "$DIR_PROYECTO/scripts/01_animate_radiation.py" ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,noaa_gfs,dwd_icon
     fi
 
     # 6. Sincronización automática a Google Drive (WN3 con histórico; otras fuentes solo actual)

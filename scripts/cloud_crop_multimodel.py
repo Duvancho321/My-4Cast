@@ -1,18 +1,19 @@
 """
-cloud_crop_multimodel.py — Recorte efímero en la nube de modelos abiertos (GFS, IFS, AIFS, CHIRPS-GEFS, ICON, GraphCast) para Colombia.
+cloud_crop_multimodel.py — Recorte efímero en la nube de 10 modelos abiertos (GFS, IFS, AIFS ENS/Single, CHIRPS-GEFS, ICON, GraphCast, Aurora, FourCastNet v2, Pangu) para Colombia.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.1.0"
+__version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-11-05][Duvan]: Creación de worker multimodelo efímero estandarizado al esquema de Colombia.
+    - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather con concurrencia en ICON y CHIRPS-GEFS.
 """
 
 from sys import argv
 from json import dump
+from h5py import File
 from bz2 import decompress
 from fsspec import filesystem
 from scipy.spatial import cKDTree
@@ -22,8 +23,9 @@ from gribberish import parse_grib_array
 from rasterio.windows import from_bounds
 from urllib.request import Request, urlopen
 from icechunk import Repository, s3_storage
+from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
-from xarray import DataArray, Dataset, open_dataset, open_zarr
+from concurrent.futures import ThreadPoolExecutor
 from numpy import arange, array, column_stack, flipud, float32, hypot, isnan, meshgrid, nan_to_num, nanpercentile, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
@@ -106,6 +108,37 @@ catalogo_modelos = {
         'resolucion': '0.25° (~28 km)',
         'paso_h': 6,
         'horizonte_h': 240,
+        'mlwp_code': 'GRAP_v100_GFS',
+        'ensamble': False
+    },
+    'aurora_gfs': {
+        'nombre': 'Microsoft Aurora GFS (NOAA MLWP)',
+        'organizacion': 'Microsoft Research / NOAA OAR',
+        'tipo': 'IA Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 240,
+        'mlwp_code': 'AURO_v100_GFS',
+        'ensamble': False
+    },
+    'fourcastnet_gfs': {
+        'nombre': 'NVIDIA FourCastNet v2 GFS (NOAA MLWP)',
+        'organizacion': 'NVIDIA / NOAA OAR',
+        'tipo': 'IA Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 240,
+        'mlwp_code': 'FOUR_v200_GFS',
+        'ensamble': False
+    },
+    'pangu_gfs': {
+        'nombre': 'Huawei Pangu-Weather GFS (NOAA MLWP)',
+        'organizacion': 'Huawei Cloud / NOAA OAR',
+        'tipo': 'IA Determinista',
+        'resolucion': '0.25° (~28 km)',
+        'paso_h': 6,
+        'horizonte_h': 240,
+        'mlwp_code': 'PANG_v100_GFS',
         'ensamble': False
     }
 }
@@ -253,30 +286,28 @@ def procesar_chirps_gefs(model_id, cfg):
         raise RuntimeError('No se encontró corrida reciente de CHIRPS-GEFS v3.')
 
     print(f'[{model_id}] Corrida activa: {fecha_base:%Y-%m-%d}', flush=True)
-    capas_ppt = []
-    leads_td  = []
-    lats_asc  = None
-    lons_360  = None
 
-    for d_idx in range(16):
+    def leer_dia_chirps(d_idx):
         f_val = fecha_base + timedelta(days=d_idx)
         url_t = f'/vsicurl/https://data.chc.ucsb.edu/products/CHIRPS-GEFS/v3/daily/global/{fecha_base:%Y/%m/%d}/c3g_{f_val:%Y.%m.%d}.tif'
         with rio_open(url_t) as src:
             win = from_bounds(lon_min, lat_min, lon_max, lat_max, src.transform)
             arr = src.read(1, window=win).astype(float32)
             arr[arr < 0] = 0.0
-            arr_asc      = flipud(arr)
-            if lats_asc is None:
-                h_w, w_w = arr_asc.shape
-                lats_asc = arange(lat_min, lat_max, (lat_max - lat_min) / h_w, dtype=float32)[:h_w]
-                lons_360 = (arange(lon_min, lon_max, (lon_max - lon_min) / w_w, dtype=float32)[:w_w] + 360.0)
-            capas_ppt.append(arr_asc / 1000.0)
-            leads_td.append(timedelta64((d_idx + 1) * 24, 'h'))
+            return flipud(arr) / 1000.0
 
-    ppt_arr  = array(capas_ppt, dtype=float32)
-    ceros    = zeros(ppt_arr.shape, dtype=float32)
-    temp_def = ceros + 293.15
-    campos   = {
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        capas_ppt = list(pool.map(leer_dia_chirps, range(16)))
+
+    h_w, w_w  = capas_ppt[0].shape
+    lats_asc  = arange(lat_min, lat_max, (lat_max - lat_min) / h_w, dtype=float32)[:h_w]
+    lons_360  = (arange(lon_min, lon_max, (lon_max - lon_min) / w_w, dtype=float32)[:w_w] + 360.0)
+    leads_td  = [timedelta64((d_idx + 1) * 24, 'h') for d_idx in range(16)]
+    ppt_arr   = array(capas_ppt, dtype=float32)
+    ceros     = zeros(ppt_arr.shape, dtype=float32)
+    temp_def  = ceros + 293.15
+
+    campos = {
         'total_precipitation_1hr_p10':              ppt_arr,
         'total_precipitation_1hr_p50':              ppt_arr,
         'total_precipitation_1hr_p90':              ppt_arr,
@@ -341,11 +372,12 @@ def procesar_dwd_icon(model_id, cfg):
     leads_td   = [timedelta64(h, 'h') for h in horas_paso]
 
     def descargar_serie_icon(var_dir, var_mayus):
-        serie = []
-        for h in horas_paso:
+        def leer_hora(h):
             u_g = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/{var_dir}/icon_global_icosahedral_single-level_{fecha_str}_{h:03d}_{var_mayus}.grib2.bz2'
-            raw = parse_grib_array(decompress(urlopen(u_g, timeout=20).read()), 0)
-            serie.append(raw[map_idx].reshape(shape_2d).astype(float32))
+            raw = parse_grib_array(decompress(urlopen(u_g, timeout=25).read()), 0)
+            return raw[map_idx].reshape(shape_2d).astype(float32)
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            serie = list(pool.map(leer_hora, horas_paso))
         return array(serie, dtype=float32)
 
     tot_prec            = descargar_serie_icon('tot_prec', 'TOT_PREC')
@@ -385,16 +417,17 @@ def procesar_dwd_icon(model_id, cfg):
     zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
-#%% RECORTE DE GRAPHCAST GFS (NOAA OAR MLWP S3, 0.25° 240H)
-def procesar_graphcast_gfs(model_id, cfg):
-    print(f'\n[{model_id}] Consultando última corrida en s3://noaa-oar-mlwp-data/GRAP_v100_GFS...', flush=True)
+#%% RECORTE DE MODELOS IA DE NOAA OAR MLWP (GRAPHCAST, AURORA, FOURCASTNET V2, PANGU-WEATHER)
+def procesar_mlwp_noaa(model_id, cfg):
+    code     = cfg['mlwp_code']
+    print(f'\n[{model_id}] Consultando última corrida en s3://noaa-oar-mlwp-data/{code}...', flush=True)
     ahora    = datetime.now(timezone.utc)
     url_nc   = None
     init_iso = None
     for delta_h in [4, 10, 16, 22, 28]:
         t_ev   = ahora - timedelta(hours=delta_h)
         c_str  = '12' if t_ev.hour >= 12 else '00'
-        u_cand = f'https://noaa-oar-mlwp-data.s3.amazonaws.com/GRAP_v100_GFS/{t_ev:%Y}/{t_ev:%m%d}/GRAP_v100_GFS_{t_ev:%Y%m%d}{c_str}_f000_f240_06.nc'
+        u_cand = f'https://noaa-oar-mlwp-data.s3.amazonaws.com/{code}/{t_ev:%Y}/{t_ev:%m%d}/{code}_{t_ev:%Y%m%d}{c_str}_f000_f240_06.nc'
         try:
             urlopen(Request(u_cand, method='HEAD'), timeout=10)
             url_nc   = u_cand
@@ -404,31 +437,35 @@ def procesar_graphcast_gfs(model_id, cfg):
             continue
 
     if url_nc is None:
-        raise RuntimeError('No se encontró corrida reciente de GraphCast GFS en NOAA OAR.')
+        raise RuntimeError(f'No se encontró corrida reciente de {code} en NOAA OAR.')
 
-    print(f'[{model_id}] Descargando ventana de Colombia desde {url_nc}...', flush=True)
-    fs = filesystem('https', block_size=1048576)
+    print(f'[{model_id}] Extrayendo ventana de Colombia vía HDF5 desde {url_nc}...', flush=True)
+    fs = filesystem('https', block_size=4194304)
     with fs.open(url_nc) as f_obj:
-        ds          = open_dataset(f_obj, engine='h5netcdf')
-        lon_360_min = 360.0 + lon_min
-        lon_360_max = 360.0 + lon_max
-        sub = ds[['apcp', 't2', 'u10', 'v10']].isel(time=slice(1, None)).sel(
-            latitude=slice(lat_max, lat_min),
-            longitude=slice(lon_360_min, lon_360_max)
-        ).load()
+        with File(f_obj, 'r') as hf:
+            lats_raw = hf['latitude'][294:381]
+            lons_raw = hf['longitude'][1100:1201]
+            t2m_raw  = hf['t2'][1:, 294:381, 1100:1201]
+            u10_raw  = hf['u10'][1:, 294:381, 1100:1201]
+            v10_raw  = hf['v10'][1:, 294:381, 1100:1201]
+            apcp_raw = hf['apcp'][1:, 294:381, 1100:1201] if 'apcp' in hf else None
+            u100_raw = hf['u100'][1:, 294:381, 1100:1201] if 'u100' in hf else None
+            v100_raw = hf['v100'][1:, 294:381, 1100:1201] if 'v100' in hf else None
 
-    sub      = sub.isel(latitude=slice(None, None, -1))
-    lats_asc = sub.latitude.values.astype(float32)
-    lons_360 = sub.longitude.values.astype(float32)
-    n_pasos  = len(sub.time)
+    lats_asc = lats_raw[::-1].astype(float32)
+    lons_360 = lons_raw.astype(float32)
+    t2m_k    = nan_to_num(t2m_raw[:, ::-1, :], nan=293.15).astype(float32)
+    u10      = nan_to_num(u10_raw[:, ::-1, :], nan=0.0).astype(float32)
+    v10      = nan_to_num(v10_raw[:, ::-1, :], nan=0.0).astype(float32)
+    w10      = hypot(u10, v10)
+    u100     = nan_to_num(u100_raw[:, ::-1, :], nan=0.0).astype(float32) if u100_raw is not None else u10
+    v100     = nan_to_num(v100_raw[:, ::-1, :], nan=0.0).astype(float32) if v100_raw is not None else v10
+    w100     = hypot(u100, v100)
+    ceros    = zeros(t2m_k.shape, dtype=float32)
+    ppt_m    = ((nan_to_num(apcp_raw[:, ::-1, :], nan=0.0) / 6.0) / 1000.0).astype(float32) if apcp_raw is not None else ceros
+
+    n_pasos  = t2m_k.shape[0]
     leads_td = [timedelta64((i + 1) * 6, 'h') for i in range(n_pasos)]
-
-    ppt_m = (nan_to_num(sub['apcp'].values, nan=0.0) / 6.0) / 1000.0
-    t2m_k = nan_to_num(sub['t2'].values, nan=293.15)
-    u10   = nan_to_num(sub['u10'].values, nan=0.0)
-    v10   = nan_to_num(sub['v10'].values, nan=0.0)
-    w10   = hypot(u10, v10)
-    ceros = zeros(ppt_m.shape, dtype=float32)
 
     campos = {
         'total_precipitation_1hr_p10':              ppt_m,
@@ -442,9 +479,9 @@ def procesar_graphcast_gfs(model_id, cfg):
         'wind_speed_10m_p10':                       w10,
         'wind_speed_10m_p50':                       w10,
         'wind_speed_10m_p90':                       w10,
-        'u_component_of_wind_100m_p50':             u10,
-        'v_component_of_wind_100m_p50':             v10,
-        'wind_speed_100m_p50':                      w10,
+        'u_component_of_wind_100m_p50':             u100,
+        'v_component_of_wind_100m_p50':             v100,
+        'wind_speed_100m_p50':                      w100,
         'surface_solar_radiation_downwards_1hr_p50': ceros,
         'total_cloud_cover_p50':                    ceros
     }
@@ -465,8 +502,8 @@ if __name__ == '__main__':
                 info_m = procesar_chirps_gefs(m_id, cfg)
             elif m_id == 'dwd_icon':
                 info_m = procesar_dwd_icon(m_id, cfg)
-            elif m_id == 'graphcast_gfs':
-                info_m = procesar_graphcast_gfs(m_id, cfg)
+            elif 'mlwp_code' in cfg:
+                info_m = procesar_mlwp_noaa(m_id, cfg)
             manifest['models'][m_id] = info_m
             print(f'[✓ {m_id}] Empaquetado exitoso en {info_m["zip"]} ({info_m["steps"]} pasos).', flush=True)
         except Exception as e:

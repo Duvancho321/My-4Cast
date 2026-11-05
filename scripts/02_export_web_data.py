@@ -438,6 +438,8 @@ def exportar_modelo_web(model_id, cfg):
         'model_id': model_id,
         'modelo': cfg['nombre'],
         'etiqueta_corta': cfg['etiqueta_corta'],
+        'etiqueta_fuente': cfg['etiqueta_fuente'],
+        'carpeta_drive': cfg['carpeta'],
         'tipo': cfg['tipo'],
         'almacenamiento': cfg['almacenamiento'],
         'resolucion': cfg['resolucion'],
@@ -585,8 +587,10 @@ def exportar_modelo_web(model_id, cfg):
 
     return {
         'id': model_id,
+        'carpeta': cfg['carpeta'],
         'nombre': cfg['nombre'],
         'etiqueta_corta': cfg['etiqueta_corta'],
+        'etiqueta_fuente': cfg['etiqueta_fuente'],
         'tipo': cfg['tipo'],
         'almacenamiento': cfg['almacenamiento'],
         'resolucion': cfg['resolucion'],
@@ -595,6 +599,7 @@ def exportar_modelo_web(model_id, cfg):
         'init_utc': init_utc_str,
         'init_hl': init_hl_str,
         'n_frames': n_frames,
+        'disponible': True,
         'variables': cfg['variables'],
         'base_path': 'data' if model_id == 'wn3' else f'data/models/{model_id}'
     }
@@ -617,8 +622,10 @@ if __name__ == '__main__':
         'modelos_colombia': {
             m_id: resumen_modelos.get(m_id, {
                 'id': m_id,
+                'carpeta': cfg['carpeta'],
                 'nombre': cfg['nombre'],
                 'etiqueta_corta': cfg['etiqueta_corta'],
+                'etiqueta_fuente': cfg['etiqueta_fuente'],
                 'tipo': cfg['tipo'],
                 'almacenamiento': cfg['almacenamiento'],
                 'resolucion': cfg['resolucion'],

@@ -1,14 +1,14 @@
 """
-03_upload_drive.py — Sincronización automática de animaciones operativas hacia Google Drive con separación estricta entre WN3 (histórico) y otras fuentes (efímeras).
+03_upload_drive.py — Sincronización automática de animaciones operativas hacia Google Drive con una carpeta dedicada por cada fuente.
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.2.0"
+__version__: "0.3.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
-    - [2026-11-05][Duvan]: Estructura separada WN3/ (actual + historico) vs OTRAS_FUENTES/<MODELO>/ (solo actual efímero).
+    - [2026-11-05][Duvan]: Creación de una carpeta independiente en Drive por cada una de las 11 fuentes (WN3 con histórico; las demás efímeras).
 """
 
 from sys import argv, path
@@ -17,9 +17,9 @@ path.insert(0, '/home/dnieves/Documentos/My-4Cast')
 from glob import glob
 from xarray import open_zarr
 from numpy import timedelta64
+from os.path import basename, exists
 from src.modelos import modelos_colombia
 from googleapiclient.discovery import build
-from os.path import basename, exists, getsize
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.http import MediaFileUpload
@@ -93,20 +93,23 @@ def subir_o_actualizar_archivo(service, ruta_local, parent_id, nombre_destino):
     print(f"    [✓ Subido] {nombre_destino} ({int(creado.get('size', 0)) / 1e6:.1f} MB)", flush=True)
     return creado.get('id')
 
-#%% SINCRONIZACIÓN POR FUENTE (WN3 HISTÓRICO VS. OTRAS FUENTES EFÍMERAS)
+#%% SINCRONIZACIÓN CON CARPETA EXCLUSIVA POR CADA FUENTE EN DRIVE
 if __name__ == '__main__':
     objetivo = argv[1] if len(argv) > 1 else 'all'
     print('==========================================================', flush=True)
-    print('Sincronización Multimodelo de Animaciones a Google Drive', flush=True)
+    print('Sincronización Multimodelo a Google Drive (11 Fuentes)', flush=True)
     print('==========================================================', flush=True)
 
-    service       = obtener_servicio_drive()
-    id_wn3_root   = obtener_o_crear_carpeta(service, 'WN3', FOLDER_ROOT_ID)
-    id_otras_root = obtener_o_crear_carpeta(service, 'OTRAS_FUENTES', FOLDER_ROOT_ID)
+    service = obtener_servicio_drive()
 
     for m_id, cfg in modelos_colombia.items():
         if objetivo != 'all' and m_id not in objetivo.split(','):
             continue
+
+        # Garantizar que exista la carpeta exclusiva de cada fuente en la raíz de 01_Animaciones
+        id_fuente = obtener_o_crear_carpeta(service, cfg['carpeta'], FOLDER_ROOT_ID)
+        print(f"\n[{cfg['carpeta']}] {cfg['etiqueta_fuente']} -> Carpeta Drive verificada ({id_fuente})", flush=True)
+
         if not exists(cfg['ruta_zarr']) or not exists(cfg['dir_anim']):
             continue
 
@@ -118,22 +121,19 @@ if __name__ == '__main__':
         init_utc  = ds.init_time.values[-1]
         init_hl   = init_utc - timedelta64(5, 'h')
         fecha_tag = str(init_hl)[:10].replace('-', '') + f"_{str(init_hl)[11:13]}HL"
-
-        print(f"\n[{m_id.upper()}] Corrida: {fecha_tag} ({len(videos)} videos en {cfg['dir_anim']})", flush=True)
+        print(f"  Corrida activa: {fecha_tag} ({len(videos)} videos)", flush=True)
 
         if cfg['almacenamiento'] == 'canonico_historico':
-            id_actual = obtener_o_crear_carpeta(service, 'actual', id_wn3_root)
-            id_hist   = obtener_o_crear_carpeta(service, 'historico', id_wn3_root)
+            id_actual = obtener_o_crear_carpeta(service, 'actual', id_fuente)
+            id_hist   = obtener_o_crear_carpeta(service, 'historico', id_fuente)
             id_corr   = obtener_o_crear_carpeta(service, fecha_tag, id_hist)
             for v in videos:
                 nom_limpio = basename(v).replace('_whatsapp', '')
                 subir_o_actualizar_archivo(service, v, id_actual, nom_limpio)
                 subir_o_actualizar_archivo(service, v, id_corr, f'{fecha_tag}_{nom_limpio}')
         else:
-            subcarpeta_mod = cfg['carpeta'].split('/')[-1]
-            id_mod_folder  = obtener_o_crear_carpeta(service, subcarpeta_mod, id_otras_root)
             for v in videos:
                 nom_limpio = basename(v).replace('_whatsapp', '')
-                subir_o_actualizar_archivo(service, v, id_mod_folder, nom_limpio)
+                subir_o_actualizar_archivo(service, v, id_fuente, nom_limpio)
 
     print('\n✓ Sincronización multimodelo a Google Drive finalizada.', flush=True)

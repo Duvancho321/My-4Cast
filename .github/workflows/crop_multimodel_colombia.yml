@@ -2,12 +2,12 @@ name: Multi-Model Colombia Ephemeral Cropper
 
 on:
   schedule:
-    # Cada 6 horas a minuto 45 UTC (cubre corridas 00, 06, 12, 18 UTC de GFS, IFS, AIFS, ICON, CHIRPS-GEFS, GraphCast)
+    # Cada 6 horas a minuto 45 UTC
     - cron: '45 */6 * * *'
   workflow_dispatch:
     inputs:
       models:
-        description: 'Modelos a recortar (all o lista separada por comas: noaa_gfs,ecmwf_ifs,ecmwf_aifs_ens,ecmwf_aifs_single,chirps_gefs,dwd_icon,graphcast_gfs)'
+        description: 'Modelos a recortar (all o lista separada por comas)'
         required: false
         default: 'all'
 
@@ -15,9 +15,23 @@ permissions:
   contents: write
 
 jobs:
-  crop_multimodel:
+  crop_model:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - noaa_gfs
+          - ecmwf_ifs
+          - ecmwf_aifs_ens
+          - ecmwf_aifs_single
+          - chirps_gefs
+          - dwd_icon
+          - graphcast_gfs
+          - aurora_gfs
+          - fourcastnet_gfs
+          - pangu_gfs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,24 +46,55 @@ jobs:
           pip install --upgrade pip
           pip install xarray zarr icechunk numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
 
-      - name: Crop Colombia domain across open forecast models
-        id: crop_models
+      - name: Crop Colombia domain for ${{ matrix.model }}
         run: |
-          python scripts/cloud_crop_multimodel.py "${{ github.event.inputs.models || 'all' }}"
-          if ls colombia_*.zip 1> /dev/null 2>&1; then
-            echo "has_models=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_models=false" >> $GITHUB_OUTPUT
+          FILTER="${{ github.event.inputs.models || 'all' }}"
+          if [ "$FILTER" = "all" ] || echo ",$FILTER," | grep -q ",${{ matrix.model }},"; then
+            python scripts/cloud_crop_multimodel.py "${{ matrix.model }}"
+            mv models_manifest.json "manifest_${{ matrix.model }}.json" || true
           fi
 
-      - name: Publish ephemeral Colombia crops to GitHub Release (colombia-models-latest)
-        if: steps.crop_models.outputs.has_models == 'true'
+      - name: Upload cropped model artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crop-${{ matrix.model }}
+          path: |
+            colombia_${{ matrix.model }}.zip
+            manifest_${{ matrix.model }}.json
+          if-no-files-found: ignore
+
+  publish_release:
+    needs: crop_model
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all cropped model artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts_in
+          merge-multiple: true
+
+      - name: Merge manifests and publish to GitHub Release (colombia-models-latest)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RUN_TAG="colombia-models-latest"
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-          gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
-            --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
-            --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS). Exclusivamente para visualizacion; sin acumulacion historica."
+          cd artifacts_in
+          python3 -c "
+          import glob, json, datetime
+          merged = {'updated_utc': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
+          for fn in sorted(glob.glob('manifest_*.json')):
+              data = json.load(open(fn))
+              merged['models'].update(data.get('models', {}))
+          with open('models_manifest.json', 'w') as f:
+              json.dump(merged, f, indent=2, ensure_ascii=False)
+          print('Merged models:', list(merged['models'].keys()))
+          "
+          if ls colombia_*.zip 1> /dev/null 2>&1; then
+            RUN_TAG="colombia-models-latest"
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+            gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+            gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
+              --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
+              --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
+          fi
