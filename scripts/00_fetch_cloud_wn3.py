@@ -21,10 +21,13 @@ from os.path import exists
 from zipfile import ZipFile
 from numpy import isnan
 from xarray import open_zarr
+from time import monotonic, sleep
 from urllib.request import Request, urlopen
 from src.descarga import apilar_corrida_zarr
 
 #%% CONFIGURACIÓN DE PARÁMETROS
+max_mb_seg = 6.0
+tam_bloque = 1024 * 1024
 repo_owner = 'Duvancho321'
 repo_name  = 'My-4Cast'
 tag_rel    = 'colombia-wn3-latest'
@@ -104,15 +107,19 @@ if exists(ruta_tmp):
 
 with open(ruta_tmp, 'wb') as f_out:
     for a in assets:
-        print(f"Descargando parte {a['name']} ({a['size'] / 1e6:.1f} MB)...", flush=True)
+        print(f"Descargando parte {a['name']} ({a['size'] / 1e6:.1f} MB, máx {max_mb_seg} MB/s)...", flush=True)
         url_dl = a['url'] if token_gh else a['browser_download_url']
         req_dl = Request(url_dl, headers=headers_dl)
         with urlopen(req_dl) as resp:
             while True:
-                chunk = resp.read(16 * 1024 * 1024)
+                t_ini = monotonic()
+                chunk = resp.read(tam_bloque)
                 if not chunk:
                     break
                 f_out.write(chunk)
+                t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
+                if t_esp > 0:
+                    sleep(t_esp)
 
 print('Descarga y ensamblado completados. Extrayendo...', flush=True)
 rmtree(ruta_dir, ignore_errors=True)
