@@ -438,7 +438,7 @@ if __name__ == '__main__':
             'santander': {'nombre': 'Santander (Vélez & Serranía)', 'centro': [6.4, -73.4], 'zoom': 8},
             'boyaca': {'nombre': 'Boyacá (Tunja & Altiplano)', 'centro': [5.7, -73.4], 'zoom': 8},
             'san_andres': {'nombre': 'Archipiélago de San Andrés', 'centro': [12.8, -81.5], 'zoom': 9},
-            'antioquia': {'nombre': 'Antioquia (Medellín & Valle)', 'centro': [6.5, -75.5], 'zoom': 8}
+            'antioquia': {'nombre': 'Antioquia', 'centro': [6.5, -75.5], 'zoom': 8}
         },
         'estaciones': {}
     }
