@@ -43,7 +43,7 @@ dominios_plataforma = {
 modelos_colombia = {
     'wn3': {
         'id': 'wn3',
-        'carpeta': 'WN3',
+        'carpeta': 'GOOGLE_WN3',
         'nombre': 'WeatherNext 3 (Google DeepMind)',
         'etiqueta_corta': 'WeatherNext 3 · IA Ensamble (64m)',
         'etiqueta_fuente': 'WN3 · Google DeepMind (IA Ensamble)',
@@ -161,7 +161,7 @@ modelos_colombia = {
     },
     'chirps_gefs': {
         'id': 'chirps_gefs',
-        'carpeta': 'CHIRPS_GEFS',
+        'carpeta': 'UCSB_CHIRPS_GEFS',
         'nombre': 'UCSB CHIRPS-GEFS v3 16-Day',
         'etiqueta_corta': 'CHIRPS-GEFS v3 · Satélite+GEFS (0.05°)',
         'etiqueta_fuente': 'CHIRPS-GEFS v3 · UCSB CHC (0.05°)',
@@ -180,7 +180,7 @@ modelos_colombia = {
     },
     'graphcast_gfs': {
         'id': 'graphcast_gfs',
-        'carpeta': 'GRAPHCAST_GFS',
+        'carpeta': 'NOAA_GRAPHCAST_GFS',
         'nombre': 'GraphCast GFS (Google DeepMind / NOAA)',
         'etiqueta_corta': 'GraphCast GFS · IA Determinista',
         'etiqueta_fuente': 'GraphCast GFS · Google / NOAA (IA)',
@@ -199,7 +199,7 @@ modelos_colombia = {
     },
     'aurora_gfs': {
         'id': 'aurora_gfs',
-        'carpeta': 'AURORA_GFS',
+        'carpeta': 'NOAA_AURORA_GFS',
         'nombre': 'Microsoft Aurora GFS (NOAA MLWP)',
         'etiqueta_corta': 'Microsoft Aurora · IA Determinista',
         'etiqueta_fuente': 'Aurora GFS · Microsoft / NOAA (IA)',
@@ -218,7 +218,7 @@ modelos_colombia = {
     },
     'fourcastnet_gfs': {
         'id': 'fourcastnet_gfs',
-        'carpeta': 'FOURCASTNET_GFS',
+        'carpeta': 'NOAA_FOURCASTNET_GFS',
         'nombre': 'NVIDIA FourCastNet v2 GFS (NOAA MLWP)',
         'etiqueta_corta': 'FourCastNet v2 · IA Determinista',
         'etiqueta_fuente': 'FourCastNet v2 · NVIDIA / NOAA (IA)',
@@ -237,7 +237,7 @@ modelos_colombia = {
     },
     'pangu_gfs': {
         'id': 'pangu_gfs',
-        'carpeta': 'PANGU_GFS',
+        'carpeta': 'NOAA_PANGU_GFS',
         'nombre': 'Huawei Pangu-Weather GFS (NOAA MLWP)',
         'etiqueta_corta': 'Pangu-Weather · IA Determinista',
         'etiqueta_fuente': 'Pangu-Weather · Huawei / NOAA (IA)',

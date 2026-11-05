@@ -13,13 +13,13 @@ __changues__:
 
 from sys import argv, exit
 from shutil import rmtree
+from requests import get
 from os.path import exists
 from zipfile import ZipFile
 from json import dump, loads
 from xarray import open_zarr
 from time import monotonic, sleep
 from os import makedirs, remove
-from urllib.request import Request, urlopen
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y LÍMITE DE RED UNAL
 max_mb_seg = 4.0
@@ -53,26 +53,23 @@ print(f'Consultando recortes multimodelo efímeros en: {url_api}', flush=True)
 data_rel  = None
 modo_art  = False
 
-try:
-    req_meta = Request(url_api, headers=headers)
-    with urlopen(req_meta, timeout=20) as resp:
-        data_rel = loads(resp.read().decode())
-except Exception:
-    print(f'Aviso: Release {tag_rel} no publicado aún; consultando artifacts de la última corrida de GitHub Actions...', flush=True)
+r_meta = get(url_api, headers=headers, timeout=20)
+if r_meta.status_code == 200:
+    data_rel = r_meta.json()
+else:
+    print(f'Aviso: Release {tag_rel} no publicado aún (HTTP {r_meta.status_code}); consultando artifacts de la última corrida de GitHub Actions...', flush=True)
     modo_art = True
 
 if modo_art:
     url_runs = f'https://api.github.com/repos/{repo_owner}/{repo_name}/actions/workflows/crop_multimodel_colombia.yml/runs?per_page=3'
-    with urlopen(Request(url_runs, headers=headers), timeout=20) as r_runs:
-        runs = loads(r_runs.read().decode()).get('workflow_runs', [])
+    runs = get(url_runs, headers=headers, timeout=20).json().get('workflow_runs', [])
     arts_all = []
     for run in runs:
-        with urlopen(Request(run['artifacts_url'], headers=headers), timeout=20) as r_art:
-            arts = loads(r_art.read().decode()).get('artifacts', [])
-            if arts:
-                arts_all = arts
-                print(f'  Usando {len(arts_all)} artifacts de la corrida #{run["id"]} ({run["created_at"]})', flush=True)
-                break
+        arts = get(run['artifacts_url'], headers=headers, timeout=20).json().get('artifacts', [])
+        if arts:
+            arts_all = arts
+            print(f'  Usando {len(arts_all)} artifacts de la corrida #{run["id"]} ({run["created_at"]})', flush=True)
+            break
     if not arts_all:
         print('No se encontraron artifacts disponibles.', flush=True)
         exit(10)
@@ -89,13 +86,13 @@ if modo_art:
         ruta_ext_dir = f'{dir_models}/ext_{m_id}'
         ruta_zarr    = f'{dir_models}/{m_id}.zarr'
         print(f'  - [{m_id}] Descargando artifact {art["name"]} ({art["size_in_bytes"]/1e6:.2f} MB, máx {max_mb_seg} MB/s)...', flush=True)
-        with open(ruta_art_zip, 'wb') as f_out:
-            with urlopen(Request(art['archive_download_url'], headers=headers), timeout=90) as resp_a:
-                while True:
+        with get(art['archive_download_url'], headers=headers, stream=True, timeout=90) as resp_a:
+            resp_a.raise_for_status()
+            with open(ruta_art_zip, 'wb') as f_out:
+                for chunk in resp_a.iter_content(chunk_size=tam_bloque):
                     t_ini = monotonic()
-                    chunk = resp_a.read(tam_bloque)
                     if not chunk:
-                        break
+                        continue
                     f_out.write(chunk)
                     t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
                     if t_esp > 0:
@@ -136,8 +133,7 @@ if 'models_manifest.json' not in assets_map:
     exit(10)
 
 url_man = assets_map['models_manifest.json']['url'] if token_gh else assets_map['models_manifest.json']['browser_download_url']
-with urlopen(Request(url_man, headers=headers_dl), timeout=20) as resp_m:
-    manifest = loads(resp_m.read().decode())
+manifest = get(url_man, headers=headers_dl, timeout=20).json()
 
 with open(f'{dir_models}/models_manifest.json', 'w', encoding='utf-8') as fm:
     dump(manifest, fm, indent=2, ensure_ascii=False)
@@ -168,13 +164,13 @@ for m_id, info_m in manifest.get('models', {}).items():
     asset  = assets_map[zip_name]
     url_dl = asset['url'] if token_gh else asset['browser_download_url']
     print(f'  - [{m_id}] Descargando {zip_name} ({asset["size"] / 1e6:.2f} MB, máx {max_mb_seg} MB/s)...', flush=True)
-    with open(ruta_zip, 'wb') as f_out:
-        with urlopen(Request(url_dl, headers=headers_dl), timeout=60) as resp_z:
-            while True:
+    with get(url_dl, headers=headers_dl, stream=True, timeout=60) as resp_z:
+        resp_z.raise_for_status()
+        with open(ruta_zip, 'wb') as f_out:
+            for chunk in resp_z.iter_content(chunk_size=tam_bloque):
                 t_ini = monotonic()
-                chunk = resp_z.read(tam_bloque)
                 if not chunk:
-                    break
+                    continue
                 f_out.write(chunk)
                 t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
                 if t_esp > 0:
