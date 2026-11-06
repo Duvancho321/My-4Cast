@@ -3,14 +3,16 @@ api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de
 
 __author__: "Duvan Nieves"
 __copyright__: "Universidad Nacional de Colombia"
-__version__: "0.1.0"
+__version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves@unal.edu.co"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.
+    - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
 """
 
+from time import time
 from json import dumps
 from xarray import open_zarr
 from asyncio import Semaphore
@@ -19,13 +21,18 @@ from functools import lru_cache
 from os.path import exists, getmtime
 from src.modelos import modelos_colombia
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from numpy import arctan2, cos, cumsum, deg2rad, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y CONTROL DE CONCURRENCIA
-app            = FastAPI(title='My-4Cast Sounding API', version='0.1.0')
+app            = FastAPI(title='My-4Cast Sounding API', version='0.2.0')
+tiempo_inicio  = time()
 semaforo_disco = Semaphore(8)
 cache_modelos  = {}
+registro_ips   = {}
+stats_api      = {'total_req': 0, 'rate_limited': 0}
+LIMITE_RPM     = 60
+VENTANA_S      = 60.0
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +40,33 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=['GET', 'POST', 'OPTIONS'],
     allow_headers=['*'])
+
+#%% CONTROL DE TASA (RATE LIMITING) POR CLIENTE
+def verificar_rate_limit(request: Request):
+    ip = request.headers.get('cf-connecting-ip')
+    if not ip:
+        xff = request.headers.get('x-forwarded-for')
+        ip = xff.split(',')[0].strip() if xff else (request.client.host if request.client else '127.0.0.1')
+
+    ahora   = time()
+    ventana = ahora - VENTANA_S
+    tiempos = [t for t in registro_ips.get(ip, []) if t > ventana]
+    if len(tiempos) >= LIMITE_RPM:
+        stats_api['rate_limited'] += 1
+        raise HTTPException(
+            status_code=429,
+            detail='Límite de solicitudes alcanzado (máx 60/min). Reintente en breve.',
+            headers={'Retry-After': '30'})
+
+    tiempos.append(ahora)
+    registro_ips[ip] = tiempos
+    stats_api['total_req'] += 1
+
+    if len(registro_ips) > 2000:
+        for k in list(registro_ips.keys()):
+            registro_ips[k] = [t for t in registro_ips[k] if t > ventana]
+            if not registro_ips[k]:
+                del registro_ips[k]
 
 #%% GESTIÓN DE MODELOS EN MEMORIA
 def obtener_modelo(model_id):
@@ -166,9 +200,11 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
 #%% RUTAS DEL SERVICIO HTTP
 @app.get('/api/sounding')
 async def sounding(
+    request: Request,
     lat: float = Query(..., ge=-5.0, le=16.5, description='Latitud (-5 a 16.5)'),
     lon: float = Query(..., ge=-85.0, le=-60.0, description='Longitud (-85 a -60)'),
     model: str = Query('wn3', description='Identificador del modelo')):
+    verificar_rate_limit(request)
     if model not in modelos_colombia:
         raise HTTPException(status_code=400, detail=f'Modelo {model} no reconocido')
 
@@ -194,6 +230,10 @@ async def health():
     info_cache = extraer_sondeo_json.cache_info()
     return {
         'status': 'ok',
+        'uptime_s': int(time() - tiempo_inicio),
+        'total_requests': stats_api['total_req'],
+        'rate_limited_count': stats_api['rate_limited'],
+        'active_ips': len(registro_ips),
         'modelos_cargados': list(cache_modelos.keys()),
         'lru_hits': info_cache.hits,
         'lru_misses': info_cache.misses,
