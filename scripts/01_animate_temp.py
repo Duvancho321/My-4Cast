@@ -2,10 +2,10 @@
 01_animate_temp.py — Generación de figura clave y animación de temperatura a 2m por fuente de pronóstico.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Soporte multimodelo con separación de carpetas y prefijo por fuente.

@@ -23,7 +23,7 @@ if __name__ == '__main__':
     print('========================================================================')
     print('\n1. Abre este enlace en el navegador de tu computador:')
     print(auth_url)
-    print('\n2. Inicia sesión con dnieves@unal.edu.co y dale "Permitir".')
+    print('\n2. Inicia sesión con la cuenta dueña de la carpeta de Drive y dale "Permitir".')
     print('3. Copia la URL completa donde falle la redirección (http://localhost:8085/?...)')
     print('   y pégala aquí abajo en la misma terminal donde corre este script:\n')
     

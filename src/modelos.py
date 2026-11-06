@@ -2,10 +2,10 @@
 modelos.py — Registro centralizado de modelos de pronóstico y política de almacenamiento (WN3 canónico vs. fuentes efímeras).
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather; carpeta individual por fuente en Drive.

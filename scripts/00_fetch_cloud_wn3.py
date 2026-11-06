@@ -2,10 +2,10 @@
 00_fetch_cloud_wn3.py — Descarga ligera del recorte de Colombia desde GitHub Release.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.1.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-03][Duvan]: Ingesta ultraligera desde GitHub Release sin saturar red UNAL.

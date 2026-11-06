@@ -2,10 +2,10 @@
 cloud_crop_multimodel.py — Recorte efímero en la nube de 10 modelos abiertos (GFS, IFS, AIFS ENS/Single, CHIRPS-GEFS, ICON, GraphCast, Aurora, FourCastNet v2, Pangu) para Colombia.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather con concurrencia en ICON y CHIRPS-GEFS.

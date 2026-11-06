@@ -1,161 +1,147 @@
-# My-4Cast: Multimodel Operational Weather Forecasting Pipeline for Colombia
+# My-4Cast
 
-[![Platform](https://img.shields.io/badge/Web_Platform-weather.dnieves.stream-0284c7?style=flat&logo=cloudflare)](https://weather.dnieves.stream)
-[![API](https://img.shields.io/badge/Sounding_API-sounding.dnieves.stream-10b981?style=flat)](https://sounding.dnieves.stream/api/health)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+**Multimodel weather forecasts for Colombia, refreshed every cycle and served as a static web map and a point-sounding API.**
 
-**My-4Cast** is an open scientific pipeline that automates the acquisition, spatial cropping, statistical condensation, Zarr storage, and dissemination of high-resolution numerical and Artificial Intelligence weather forecasts over continental, insular, and maritime Colombia.
+[![Web](https://img.shields.io/badge/web-weather.dnieves.stream-2874B5?style=flat)](https://weather.dnieves.stream)
+[![Sounding API](https://img.shields.io/badge/API-sounding.dnieves.stream-1F6A45?style=flat)](https://sounding.dnieves.stream/api/health)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0F2A44.svg)](LICENSE)
 
----
+My-4Cast crops 11 global forecast systems (AI, physical and satellite-based) to the Colombian domain, condenses ensembles to P10/P50/P90, stores them as Zarr and publishes two products:
 
-## 1. Multimodel Inventory and Data Sources
+- **[weather.dnieves.stream](https://weather.dnieves.stream)**: an interactive map with 360 hourly frames per variable, wind vectors, 45 monitoring points and 15-day meteograms.
+- **[sounding.dnieves.stream](https://sounding.dnieves.stream/api/health)**: an API that returns the full time series for any point in Colombia.
 
-The platform continuously processes **11 state-of-the-art meteorological models** covering physical Numerical Weather Prediction (NWP), Deep Learning foundation models, and satellite-calibrated precipitation systems.
-
-### Comprehensive Sources Table
-
-| Identifier | Model / System | Author / Institution | Paradigm | Spatial Grid | Temporal Step | Horizon | Primary Data Source |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `wn3` | **WeatherNext 3** | Google DeepMind / ECMWF | AI Ensemble (64 members) | $0.10^\circ$ (~10 km) | 1 hour | 360 h (15 days) | Google Cloud Storage (`gs://weathernext3_statistics_spatial/`) |
-| `ecmwf_ifs` | **IFS ENS 15-day Open** | ECMWF | Physical NWP (51 members) | $0.25^\circ$ (~28 km) | 3 h (1–6d) / 6 h (7–15d) | 360 h (15 days) | ECMWF Open Data / Earthmover S3 (`dynamical-ecmwf-ifs-ens`) |
-| `ecmwf_aifs_ens` | **AIFS ENS 15-day** | ECMWF | AI Ensemble (51 members) | $0.25^\circ$ (~28 km) | 6 hours | 360 h (15 days) | ECMWF Open Data / Earthmover S3 (`dynamical-ecmwf-aifs-ens`) |
-| `ecmwf_aifs_single` | **AIFS Single** | ECMWF | AI Deterministic | $0.25^\circ$ (~28 km) | 6 hours | 360 h (15 days) | ECMWF Open Data / Earthmover S3 (`dynamical-ecmwf-aifs-single`) |
-| `noaa_gfs` | **NOAA GFS** | NCEP / NOAA | Physical NWP Deterministic | $0.25^\circ$ (~28 km) | 1 h (to 120h) / 3 h (to 384h) | 384 h (16 days) | NOAA Open Data / Earthmover S3 (`dynamical-noaa-gfs`) |
-| `dwd_icon` | **DWD ICON Global** | Deutscher Wetterdienst (DWD) | Physical NWP Deterministic | $0.125^\circ$ (~13 km) | 3 hours | 180 h (7.5 days) | DWD OpenData Server (`opendata.dwd.de/weather/nwp/icon/`) |
-| `chirps_gefs` | **CHIRPS-GEFS v3** | UC Santa Barbara / CHC | Hybrid Satellite + GEFS | $0.05^\circ$ (~5.5 km) | 24 hours (daily) | 384 h (16 days) | CHC UCSB Server (`data.chc.ucsb.edu/products/CHIRPS-GEFS_precip/`) |
-| `graphcast_gfs` | **GraphCast GFS** | Google DeepMind / NOAA | AI Deterministic (GNN) | $0.25^\circ$ (~28 km) | 6 hours | 240 h (10 days) | NOAA Open Data / Earthmover S3 |
-| `aurora_gfs` | **Aurora GFS** | Microsoft Research / NOAA | AI Foundation Model | $0.25^\circ$ (~28 km) | 6 hours | 240 h (10 days) | NOAA Open Data / Earthmover S3 |
-| `fourcastnet_gfs` | **FourCastNet v2 GFS** | NVIDIA / NOAA | AI Deterministic (AFNO) | $0.25^\circ$ (~28 km) | 6 hours | 240 h (10 days) | NOAA Open Data / Earthmover S3 |
-| `pangu_gfs` | **Pangu-Weather GFS** | Huawei Cloud / NOAA | AI Deterministic (3D Earth) | $0.25^\circ$ (~28 km) | 6 hours | 240 h (10 days) | NOAA Open Data / Earthmover S3 |
+> [!WARNING]
+> Research and information use only. These are experimental model outputs, not official warnings. Do not use them for emergency management, navigation or life-critical decisions. For official warnings in Colombia, consult **IDEAM**.
 
 ---
 
-## 2. System Architecture
+## Contents
 
-The pipeline operates as a **four-tier hybrid architecture**, decoupling heavy planetary cloud datasets from client delivery:
+1. [Forecast sources](#1-forecast-sources)
+2. [How it works](#2-how-it-works)
+3. [Using the API](#3-using-the-api)
+4. [Running it locally](#4-running-it-locally)
+5. [Repository layout](#5-repository-layout)
+6. [Data terms and acknowledgments](#6-data-terms-and-acknowledgments)
+7. [Author and license](#7-author-and-license)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. Planetary Cloud Datasets (GCS / S3 / Icechunk Stores)    │
-│    Google DeepMind · ECMWF · NOAA · DWD · UCSB CHC          │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ High-Speed Network
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Cloud Cropper Workers (GitHub Actions CI/CD)              │
-│    - Verifies 360-hour forecast completeness (anti-NaN)     │
-│    - Extracts Colombia spatial domain [-5 to 16.5°N, -85 to │
-│      -60°W] across 15 physical parameters                   │
-│    - Publishes compressed multi-part releases               │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ HTTPS CDN Distribution
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 3. Automated Processing Node (Linux Server Pipeline)        │
-│    - Ingestion: Fetch, reassemble, atomic Zarr append       │
-│    - Multi-model Web Export: JSON telemetry & 3,960 frames  │
-│    - Video Engine: H.264 MP4 rendering & Cloud Archive      │
-│    - Sounding API: FastAPI + LRU Cache on Port 8000         │
-└───────────────┬─────────────────────────────┬───────────────┘
-                │ Cloudflare Tunnel           │ Git CI Deploy
-                ▼                             ▼
-┌───────────────────────────────┐ ┌───────────────────────────┐
-│ 4a. Point Sounding API        │ │ 4b. Synoptic Web UI       │
-│     sounding.dnieves.stream   │ │     weather.dnieves.stream│
-│  - Arbitrary pixel sampling   │ │  - Interactive SPA        │
-│  - Rate limiting (60 req/min) │ │  - Leaflet + Chart.js     │
-│  - Extraterrestrial ToA flux  │ │  - Real-time wind quivers │
-└───────────────────────────────┘ └───────────────────────────┘
+---
+
+## 1. Forecast sources
+
+| ID | System | Provider | Type | Grid | Step | Horizon |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `wn3` | WeatherNext 3 | Google DeepMind | AI ensemble (64 members) | 0.10° (~10 km) | 1 h | 360 h |
+| `ecmwf_ifs` | IFS ENS (open data) | ECMWF | Physical ensemble (51 members) | 0.25° | 3 h → 6 h | 360 h |
+| `ecmwf_aifs_ens` | AIFS ENS | ECMWF | AI ensemble (51 members) | 0.25° | 6 h | 360 h |
+| `ecmwf_aifs_single` | AIFS Single | ECMWF | AI deterministic | 0.25° | 6 h | 360 h |
+| `noaa_gfs` | GFS | NOAA / NCEP | Physical deterministic | 0.25° | 1 h → 3 h | 384 h |
+| `dwd_icon` | ICON Global | DWD | Physical deterministic | 0.125° | 3 h | 180 h |
+| `chirps_gefs` | CHIRPS-GEFS v3 | UC Santa Barbara CHC | Satellite + GEFS (precipitation) | 0.05° | 24 h | 384 h |
+| `graphcast_gfs` | GraphCast | Google DeepMind / NOAA | AI deterministic | 0.25° | 6 h | 240 h |
+| `aurora_gfs` | Aurora | Microsoft Research / NOAA | AI deterministic | 0.25° | 6 h | 240 h |
+| `fourcastnet_gfs` | FourCastNet v2 | NVIDIA / NOAA | AI deterministic | 0.25° | 6 h | 240 h |
+| `pangu_gfs` | Pangu-Weather | Huawei Cloud / NOAA | AI deterministic | 0.25° | 6 h | 240 h |
+
+Variables on the map: hourly precipitation (three schemes), 2 m temperature, 10 m and 100 m wind, surface solar radiation and total, low, mid and high cloud cover.
+
+---
+
+## 2. How it works
+
+```text
+Provider stores (GCS, S3, open-data servers)
+        │
+        ▼
+GitHub Actions croppers ── check that all 360 h exist (no NaN), crop
+        │                   lat −5…16.5°N, lon −85…−60°W, publish a release
+        ▼
+Processing node ── fetch, append to the Zarr cube atomically,
+        │           export JSON + PNG frames, render MP4 animations
+        ├──────────────► Static web map (Cloudflare Pages)
+        └──────────────► Sounding API (FastAPI behind Cloudflare Tunnel)
 ```
 
+| Stage | Where | Schedule |
+| :--- | :--- | :--- |
+| WeatherNext 3 cropper | `.github/workflows/crop_colombia.yml` | every 3 h (`20 */3 * * *` UTC) |
+| Multimodel cropper | `.github/workflows/crop_multimodel_colombia.yml` | every 6 h (`45 */6 * * *` UTC) |
+| Ingest, export, publish | `scripts/run_pipeline.sh` | four times a day |
+| Sounding API | `src/api_sounding.py` | always on |
+
+Color scales for every variable are defined once in [`src/paletas.py`](src/paletas.py). The web legend uses the same colors and breaks, so legend and map always match.
+
 ---
 
-## 3. Usage and API Endpoints
-
-### 3.1 Web Platform
-Access the production dashboard at **[https://weather.dnieves.stream](https://weather.dnieves.stream)**:
-- **Clean Map Mode**: Toggle panels on/off for unobstructed cartographic analysis.
-- **Multimodel Selector**: Switch between WeatherNext 3, ECMWF IFS, AIFS, NOAA GFS, DWD ICON, and experimental AI models.
-- **Diagnostic Console**: Open the responsive drawer for 15-day multi-axis meteograms (precipitation, temperature, wind, cloud cover, and solar irradiance).
-- **Point Sounding**: Click any point across Colombia to request real-time time series computed on demand from the numerical Zarr store.
-
-### 3.2 Public Sounding API
-The arbitrary point extraction service is accessible via HTTPS:
+## 3. Using the API
 
 ```bash
-# Health check and service status
+# Service status
 curl -s "https://sounding.dnieves.stream/api/health"
 
-# Query custom coordinates (e.g. 6.01°N, 73.67°W on WeatherNext 3)
+# Time series at 6.01°N 73.67°W from WeatherNext 3
 curl -s "https://sounding.dnieves.stream/api/sounding?lat=6.01&lon=-73.67&model=wn3"
 ```
 
-**API Characteristics**:
-- **Rate Limit**: 60 requests/minute per client IP (HTTP 429 response on breach).
-- **Caching**: Global edge CDN caching with `Cache-Control: public, max-age=14400, stale-while-revalidate=3600`.
-- **Response Format**: Compact JSON containing hourly series (360h) for percentiles p10, p50, and p90.
+- `model` takes any ID from the table above.
+- The response is JSON: an `info` block (point, grid) and hourly series per variable with `p10`, `p50` and `p90`.
+- The limit is 60 requests per minute per IP; above that the API answers HTTP 429 with `Retry-After`.
+- Responses are cached at the edge for 4 h.
 
 ---
 
-## 4. Local Installation and Execution
+## 4. Running it locally
 
-### Requirements
-- Linux OS (Ubuntu 22.04 LTS or superior recommended)
-- Python 3.11+
-- FFmpeg (for video rendering)
+Requirements: Linux, conda or micromamba, and FFmpeg (for the animations).
 
 ```bash
-# Clone the repository
 git clone https://github.com/Duvancho321/My-4Cast.git
 cd My-4Cast
-
-# Set up Python environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+micromamba env create -f environment.yml   # or: conda env create -f environment.yml
+micromamba activate my-4cast
 ```
 
-### Running Components
 ```bash
-# Ingest latest Colombia crop from cloud release
-python scripts/00_fetch_cloud_wn3.py
-
-# Export web JSON and spatial PNG frames for all models
-python scripts/02_export_web_data.py all
-
-# Launch the Point Sounding Microservice locally
-uvicorn src.api_sounding:app --host 0.0.0.0 --port 8000
+python scripts/00_fetch_cloud_wn3.py          # ingest the latest WeatherNext 3 crop
+python scripts/02_export_web_data.py all      # export JSON and PNG frames for all models
+uvicorn src.api_sounding:app --port 8000      # start the sounding API
 ```
 
----
-
-## 5. Scientific and Operational Disclaimer
-
-> [!WARNING]
-> **Scientific & Research Use Only**:  
-> The forecasts and data visualizations provided by **My-4Cast** are generated by experimental numerical models and artificial intelligence research systems (including Google DeepMind WeatherNext 3, ECMWF IFS/AIFS, and NOAA GFS).  
-> 
-> They are intended solely for academic research, operational evaluation, and scientific inquiry. They **do not constitute official weather warnings or alerts** and must not be used as the primary basis for emergency management, disaster response, navigation, or critical decision-making. For official warnings and meteorological bulletins in Colombia, consult the competent national authorities (such as **IDEAM**).
+> [!NOTE]
+> Storage paths are currently set for the production machine (`src/modelos.py`, `scripts/run_pipeline.sh`). Adjust them before running elsewhere. `requirements.txt` only covers the cloud croppers; use `environment.yml` for the full pipeline.
 
 ---
 
-## 6. Attributions and Open-Source Acknowledgments
+## 5. Repository layout
 
-We gratefully acknowledge the researchers, organizations, and open-source communities whose work makes this project possible:
-
-- **Google DeepMind**: For WeatherNext 3 and GraphCast models and data access via Google Cloud Public Datasets.
-- **European Centre for Medium-Range Weather Forecasts (ECMWF)**: For the Integrated Forecasting System (IFS) and Artificial Intelligence Forecasting System (AIFS) open data.
-- **National Oceanic and Atmospheric Administration (NOAA / NCEP)**: For the Global Forecast System (GFS) and open model initiatives.
-- **Deutscher Wetterdienst (DWD)**: For the ICON global model open data server.
-- **UC Santa Barbara Climate Hazards Center (CHC)**: For the CHIRPS-GEFS rainfall dataset.
-- **Microsoft Research**: For the Aurora atmospheric foundation model.
-- **NVIDIA Corporation**: For the FourCastNet v2 architecture.
-- **Huawei Cloud**: For the Pangu-Weather model.
-- **Software Libraries**: Built on [Leaflet](https://leafletjs.com/), [Chart.js](https://www.chartjs.org/), [Tailwind CSS](https://tailwindcss.com/), [FastAPI](https://fastapi.tiangolo.com/), [Xarray](https://docs.xarray.dev/), [Zarr](https://zarr.readthedocs.io/), [Cartopy](https://scitools.org.uk/cartopy/), and [Matplotlib](https://matplotlib.org/).
+| Path | What it holds |
+| :--- | :--- |
+| `src/modelos.py` | Catalog of the 11 sources: IDs, paths, variables |
+| `src/paletas.py` | Color scales and breaks for every variable |
+| `src/descarga.py` | Atomic append of new cycles to the Zarr cube |
+| `src/animacion.py` | Map rendering (Cartopy) and MP4 encoding (FFmpeg) |
+| `src/api_sounding.py` | Sounding API: nearest-cell extraction, rate limit, LRU cache |
+| `scripts/00_*.py`, `scripts/cloud_crop_*.py` | Download, crop and backfill |
+| `scripts/01_animate_*.py` | Precipitation, temperature and radiation animations |
+| `scripts/02_export_web_data.py` | JSON and frames for the web map |
+| `scripts/03_upload_drive.py` | Animation archive |
+| `scripts/run_pipeline.sh`, `scripts/watch_and_run_wn3.sh` | Orchestration |
+| `.github/workflows/` | Cloud croppers and backfill |
 
 ---
 
-## 7. License
+## 6. Data terms and acknowledgments
 
-This repository is distributed under the **MIT License**. Original model outputs and meteorological datasets remain subject to their respective provider terms and open-data licenses.
+Forecast data remain subject to each provider's terms: Google DeepMind (WeatherNext 3, GraphCast), ECMWF (IFS, AIFS open data), NOAA/NCEP (GFS and the NOAA machine-learning model runs), DWD (ICON open data), UC Santa Barbara Climate Hazards Center (CHIRPS-GEFS), Microsoft Research (Aurora), NVIDIA (FourCastNet) and Huawei Cloud (Pangu-Weather). Check each provider's terms before reusing the outputs.
+
+Built with [Xarray](https://docs.xarray.dev/), [Zarr](https://zarr.readthedocs.io/), [Dask](https://www.dask.org/), [Cartopy](https://scitools.org.uk/cartopy/), [Matplotlib](https://matplotlib.org/), [FastAPI](https://fastapi.tiangolo.com/), [Leaflet](https://leafletjs.com/) and [Chart.js](https://www.chartjs.org/).
+
+---
+
+## 7. Author and license
+
+My-4Cast is a personal project by **Duvan Nieves Ruiz** · [dnieves.sci@gmail.com](mailto:dnieves.sci@gmail.com).
+
+Code released under the [MIT License](LICENSE).

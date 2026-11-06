@@ -2,10 +2,10 @@
 descarga.py — Ingesta y validación modular de corridas de WeatherNext 3.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-10-29][Duvan]: Soporte para streaming de todas las 126 variables.

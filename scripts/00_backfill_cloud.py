@@ -2,10 +2,10 @@
 00_backfill_cloud.py — Descarga e integración secuencial del backfill de Colombia desde GitHub Releases.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.1.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-03][Duvan]: Backfill incremental y ordenado para noviembre 2026.

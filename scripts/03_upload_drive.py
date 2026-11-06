@@ -2,10 +2,10 @@
 03_upload_drive.py — Sincronización automática de animaciones operativas hacia Google Drive con estructura actual e histórico para todas las fuentes.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.4.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Estructura dual actual/ e historico/<fecha_tag>/ para las 11 fuentes en Drive (datos crudos efímeros, animaciones preservadas).

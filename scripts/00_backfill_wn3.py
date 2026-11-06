@@ -2,10 +2,10 @@
 00_backfill_wn3.py — Backfill continuo cada 6h de WeatherNext 3 para Colombia.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-10-29][Duvan]: Backfill regular cada 6h (30 corridas homogéneas).

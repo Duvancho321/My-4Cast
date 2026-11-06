@@ -2,10 +2,10 @@
 02_export_web_data.py — Extractor y generador de datos meteorológicos y frames para el portal web.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.7.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Inclusión de todas las 32 capitales departamentales.

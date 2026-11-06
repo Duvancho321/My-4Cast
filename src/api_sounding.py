@@ -2,10 +2,10 @@
 api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de pronóstico meteorológico.
 
 __author__: "Duvan Nieves"
-__copyright__: "Universidad Nacional de Colombia"
+__copyright__: "Duvan Nieves Ruiz"
 __version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
-__email__: "dnieves@unal.edu.co"
+__email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.

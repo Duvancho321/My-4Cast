@@ -16,6 +16,10 @@ dependencies:
   - pandas
   - numpy
   - scipy
+  - h5py
+  - rasterio
+  - requests
+  - pillow
   - pip
   - pip:
     - obstore
@@ -23,3 +27,9 @@ dependencies:
     - earthengine-api
     - imageio
     - imageio-ffmpeg
+    - icechunk
+    - gribberish
+    - fastapi
+    - uvicorn
+    - google-api-python-client
+    - google-auth-oauthlib
