@@ -1,11 +1,12 @@
 #!/bin/bash
 # run_pipeline.sh — Orquestador del pipeline operativo Multimodelo (WN3 canónico + fuentes efímeras)
 
-PYTHON="/home/dnieves/micromamba/envs/my-4cast/bin/python"
-DIR_PROYECTO="/home/dnieves/Documentos/My-4Cast"
-DIR_WEB="/home/dnieves/Documentos/My-4Cast-Web"
-DIR_DATOS_WEB="/mnt/datos/dnieves/WN3/web_data"
-LOG_DIR="/mnt/datos/dnieves/WN3/logs"
+PYTHON="${MY4CAST_PYTHON:-/home/dnieves/micromamba/envs/my-4cast/bin/python}"
+DIR_PROYECTO="${MY4CAST_CODE_DIR:-/home/dnieves/Documentos/My-4Cast}"
+DIR_WEB="${MY4CAST_WEB_DIR:-/home/dnieves/Documentos/My-4Cast-Web}"
+DIR_DATOS="${MY4CAST_DATA_DIR:-/mnt/datos/dnieves/WN3}"
+DIR_DATOS_WEB="$DIR_DATOS/web_data"
+LOG_DIR="$DIR_DATOS/logs"
 
 mkdir -p "$LOG_DIR"
 

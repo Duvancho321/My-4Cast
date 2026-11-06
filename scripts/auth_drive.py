@@ -2,13 +2,15 @@
 auth_drive.py — Flujo OAuth interactivo en terminal para servidores remotos.
 """
 import os
+from pathlib import Path
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
-CLIENT_SECRET = '/home/dnieves/Documentos/My-4Cast/client_secret.json'
-TOKEN_FILE    = '/home/dnieves/Documentos/My-4Cast/token_drive.json'
+DIR_ROOT = Path(__file__).resolve().parent.parent
+CLIENT_SECRET = os.getenv('DRIVE_CLIENT_SECRET', str(DIR_ROOT / 'client_secret.json'))
+TOKEN_FILE    = os.getenv('DRIVE_TOKEN_FILE', str(DIR_ROOT / 'token_drive.json'))
 
 if __name__ == '__main__':
     flow = InstalledAppFlow.from_client_secrets_file(

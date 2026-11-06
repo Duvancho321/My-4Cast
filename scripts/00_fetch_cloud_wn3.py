@@ -12,34 +12,39 @@ __changues__:
 """
 
 from sys import exit, path
-path.insert(0, '/home/dnieves/Documentos/My-4Cast')
+from pathlib import Path
+path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from os import remove
 from json import loads
 from shutil import rmtree
-from os.path import exists
 from zipfile import ZipFile
 from numpy import isnan
 from xarray import open_zarr
+from os import getenv, remove
 from time import monotonic, sleep
+from os.path import exists, expanduser
 from urllib.request import Request, urlopen
 from src.descarga import apilar_corrida_zarr
 
 #%% CONFIGURACIÓN DE PARÁMETROS
+dir_datos  = getenv('MY4CAST_DATA_DIR', '/mnt/datos/dnieves/WN3')
 max_mb_seg = 6.0
 tam_bloque = 1024 * 1024
 repo_owner = 'Duvancho321'
 repo_name  = 'My-4Cast'
 tag_rel    = 'colombia-wn3-latest'
-ruta_tmp   = '/mnt/datos/dnieves/WN3/staging/tmp_cloud.zip'
-ruta_dir   = '/mnt/datos/dnieves/WN3/staging/tmp_cloud_extracted.zarr'
-ruta_zarr  = '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr'
-ruta_stage = '/mnt/datos/dnieves/WN3/staging/tmp_append.zarr'
+ruta_tmp   = f'{dir_datos}/staging/tmp_cloud.zip'
+ruta_dir   = f'{dir_datos}/staging/tmp_cloud_extracted.zarr'
+ruta_zarr  = f'{dir_datos}/raw/colombia_wn3_full.zarr'
+ruta_stage = f'{dir_datos}/staging/tmp_append.zarr'
 
-#%% OBTENCIÓN DE TOKEN DE GITHUB DE CREDENCIALES LOCALES
+#%% OBTENCIÓN DE TOKEN DE GITHUB DE ENTORNO O CREDENCIALES LOCALES
 def obtener_github_token():
+    tok = getenv('GITHUB_TOKEN')
+    if tok:
+        return tok
     try:
-        with open('/home/dnieves/.git-credentials') as f:
+        with open(expanduser('~/.git-credentials')) as f:
             for linea in f:
                 if 'github.com' in linea:
                     return linea.split('//')[1].split('@')[0].split(':')[1]

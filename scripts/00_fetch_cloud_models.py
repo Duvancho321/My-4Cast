@@ -14,27 +14,31 @@ __changues__:
 from sys import argv, exit
 from shutil import rmtree
 from requests import get
-from os.path import exists
 from zipfile import ZipFile
 from json import dump, loads
 from xarray import open_zarr
 from time import monotonic, sleep
-from os import makedirs, remove
+from os import getenv, makedirs, remove
+from os.path import exists, expanduser
 
-#%% CONFIGURACIÓN DE PARÁMETROS Y LÍMITE DE RED UNAL
+#%% CONFIGURACIÓN DE PARÁMETROS
+dir_datos  = getenv('MY4CAST_DATA_DIR', '/mnt/datos/dnieves/WN3')
 max_mb_seg = 4.0
 tam_bloque = 1024 * 1024
 repo_owner = 'Duvancho321'
 repo_name  = 'My-4Cast'
 tag_rel    = 'colombia-models-latest'
-dir_models = '/mnt/datos/dnieves/WN3/staging/models'
+dir_models = f'{dir_datos}/staging/models'
 filtro     = argv[1] if len(argv) > 1 else 'all'
 makedirs(dir_models, exist_ok=True)
 
-#%% OBTENCIÓN DE CREDENCIALES LOCALES DE GITHUB
+#%% OBTENCIÓN DE CREDENCIALES DE GITHUB
 def obtener_github_token():
+    tok = getenv('GITHUB_TOKEN')
+    if tok:
+        return tok
     try:
-        with open('/home/dnieves/.git-credentials') as f:
+        with open(expanduser('~/.git-credentials')) as f:
             for linea in f:
                 if 'github.com' in linea:
                     return linea.split('//')[1].split('@')[0].split(':')[1]

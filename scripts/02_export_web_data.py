@@ -14,12 +14,13 @@ __changues__:
 """
 
 from sys import argv, path
-path.insert(0, '/home/dnieves/Documentos/My-4Cast')
+from pathlib import Path
+path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PIL import Image
-from os import makedirs
 from os.path import exists
 from json import dump, load
+from os import getenv, makedirs
 from xarray import open_zarr
 from pandas import to_datetime
 from src.modelos import dominios_plataforma, modelos_colombia
@@ -27,7 +28,7 @@ from src.paletas import cmap_nubosidad, cmap_ppt, cmap_radiacion, cmap_temp, cma
 from numpy import arctan2, cos, cumsum, deg2rad, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y RUTAS
-dir_web_base = '/mnt/datos/dnieves/WN3/web_data'
+dir_web_base = f"{getenv('MY4CAST_DATA_DIR', '/mnt/datos/dnieves/WN3')}/web_data"
 makedirs(dir_web_base, exist_ok=True)
 
 #%% CATÁLOGO DE MUNICIPIOS Y ESTACIONES PRIORITARIAS (SIN EMOJIS, FORMATO CIENTÍFICO)
@@ -530,7 +531,6 @@ def exportar_modelo_web(model_id, cfg):
             'nubosidad_alta': {'p50': cldh_p50}
         }
 
-    resultado['puntos'] = resultado['estaciones']
     prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
         dump(resultado, f, ensure_ascii=False, separators=(',', ':'))

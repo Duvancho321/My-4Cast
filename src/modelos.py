@@ -11,6 +11,11 @@ __changues__:
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather; carpeta individual por fuente en Drive.
 """
 
+from os import getenv
+
+#%% CONFIGURACIÓN DE RUTAS
+DIR_BASE = getenv('MY4CAST_DATA_DIR', '/mnt/datos/dnieves/WN3')
+
 #%% DOMINIOS MACRO DE LA PLATAFORMA
 dominios_plataforma = {
     'colombia': {
@@ -55,9 +60,9 @@ modelos_colombia = {
         'salto_quiver': 10,
         'salto_web': 6,
         'almacenamiento': 'canonico_historico',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/raw/colombia_wn3_full.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/WN3',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/WN3',
+        'ruta_zarr': f'{DIR_BASE}/raw/colombia_wn3_full.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/WN3',
+        'dir_fig': f'{DIR_BASE}/figures/WN3',
         'variables': [
             'precipitacion', 'precipitacion_imerg', 'precipitacion_exp',
             'temperatura', 'viento', 'viento_100m', 'radiacion',
@@ -78,9 +83,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/ecmwf_ifs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/ECMWF_IFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/ECMWF_IFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/ecmwf_ifs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/ECMWF_IFS',
+        'dir_fig': f'{DIR_BASE}/figures/ECMWF_IFS',
         'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     },
     'ecmwf_aifs_ens': {
@@ -97,9 +102,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/ecmwf_aifs_ens.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/ECMWF_AIFS_ENS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/ECMWF_AIFS_ENS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/ecmwf_aifs_ens.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/ECMWF_AIFS_ENS',
+        'dir_fig': f'{DIR_BASE}/figures/ECMWF_AIFS_ENS',
         'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     },
     'ecmwf_aifs_single': {
@@ -116,9 +121,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/ecmwf_aifs_single.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/ECMWF_AIFS_SINGLE',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/ECMWF_AIFS_SINGLE',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/ecmwf_aifs_single.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/ECMWF_AIFS_SINGLE',
+        'dir_fig': f'{DIR_BASE}/figures/ECMWF_AIFS_SINGLE',
         'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     },
     'noaa_gfs': {
@@ -135,9 +140,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/noaa_gfs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/NOAA_GFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/NOAA_GFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/noaa_gfs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/NOAA_GFS',
+        'dir_fig': f'{DIR_BASE}/figures/NOAA_GFS',
         'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     },
     'dwd_icon': {
@@ -154,9 +159,9 @@ modelos_colombia = {
         'salto_quiver': 8,
         'salto_web': 5,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/dwd_icon.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/DWD_ICON',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/DWD_ICON',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/dwd_icon.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/DWD_ICON',
+        'dir_fig': f'{DIR_BASE}/figures/DWD_ICON',
         'variables': ['precipitacion', 'temperatura', 'viento', 'radiacion', 'nubosidad_total']
     },
     'chirps_gefs': {
@@ -173,9 +178,9 @@ modelos_colombia = {
         'salto_quiver': 12,
         'salto_web': 10,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/chirps_gefs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/CHIRPS_GEFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/CHIRPS_GEFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/chirps_gefs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/CHIRPS_GEFS',
+        'dir_fig': f'{DIR_BASE}/figures/CHIRPS_GEFS',
         'variables': ['precipitacion']
     },
     'graphcast_gfs': {
@@ -192,9 +197,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/graphcast_gfs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/GRAPHCAST_GFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/GRAPHCAST_GFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/graphcast_gfs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/GRAPHCAST_GFS',
+        'dir_fig': f'{DIR_BASE}/figures/GRAPHCAST_GFS',
         'variables': ['precipitacion', 'temperatura', 'viento']
     },
     'aurora_gfs': {
@@ -211,9 +216,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/aurora_gfs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/AURORA_GFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/AURORA_GFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/aurora_gfs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/AURORA_GFS',
+        'dir_fig': f'{DIR_BASE}/figures/AURORA_GFS',
         'variables': ['temperatura', 'viento']
     },
     'fourcastnet_gfs': {
@@ -230,9 +235,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/fourcastnet_gfs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/FOURCASTNET_GFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/FOURCASTNET_GFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/fourcastnet_gfs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/FOURCASTNET_GFS',
+        'dir_fig': f'{DIR_BASE}/figures/FOURCASTNET_GFS',
         'variables': ['temperatura', 'viento', 'viento_100m']
     },
     'pangu_gfs': {
@@ -249,9 +254,9 @@ modelos_colombia = {
         'salto_quiver': 4,
         'salto_web': 3,
         'almacenamiento': 'efimero_visualizacion',
-        'ruta_zarr': '/mnt/datos/dnieves/WN3/staging/models/pangu_gfs.zarr',
-        'dir_anim': '/mnt/datos/dnieves/WN3/animations/PANGU_GFS',
-        'dir_fig': '/mnt/datos/dnieves/WN3/figures/PANGU_GFS',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/pangu_gfs.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/PANGU_GFS',
+        'dir_fig': f'{DIR_BASE}/figures/PANGU_GFS',
         'variables': ['temperatura', 'viento']
     }
 }

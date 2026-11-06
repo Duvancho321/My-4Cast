@@ -3,13 +3,14 @@ api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.0"
+__version__: "0.2.1"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
     - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.
     - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
+    - [2026-11-06][Duvan]: Formato de hemisferio en nombre y altitud null para sondeos puntuales.
 """
 
 from time import time
@@ -166,14 +167,16 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
     cos_z   = sin(lat_rad) * sin(entry['rc_dec']) + cos(lat_rad) * cos(entry['rc_dec']) * cos(omega)
     rad_toa = round(maximum(0.0, 1361.0 * entry['rc_dis'] * cos_z), 0).astype(int).tolist()
 
-    paso_f = entry['paso_f']
-    doc    = {
+    lat_hem = 'N' if actual_lat >= 0 else 'S'
+    lon_hem = 'E' if actual_lon >= 0 else 'W'
+    paso_f  = entry['paso_f']
+    doc     = {
         'info': {
-            'nombre': f'Punto {actual_lat:.2f}°, {abs(actual_lon):.2f}°W',
+            'nombre': f'Punto {abs(actual_lat):.3f}°{lat_hem} {abs(actual_lon):.3f}°{lon_hem}',
             'depto': 'Sondeo puntual',
             'lat': round(actual_lat, 4),
             'lon': round(actual_lon, 4),
-            'altitud': 0,
+            'altitud': None,
             'tag': 'Malla ' + cfg['resolucion']
         },
         'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},

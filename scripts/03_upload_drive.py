@@ -13,8 +13,10 @@ __changues__:
 """
 
 from sys import argv, path
-path.insert(0, '/home/dnieves/Documentos/My-4Cast')
+from pathlib import Path
+path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from os import getenv
 from glob import glob
 from xarray import open_zarr
 from numpy import timedelta64
@@ -26,8 +28,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.http import MediaFileUpload
 
 #%% PARÁMETROS Y CONSTANTES
-FOLDER_ROOT_ID = '1zsEhI-CnExH7RGM0qi-y1zTGPj9pAF45'
-TOKEN_FILE     = '/home/dnieves/Documentos/My-4Cast/token_drive.json'
+FOLDER_ROOT_ID = getenv('DRIVE_FOLDER_ID', '1zsEhI-CnExH7RGM0qi-y1zTGPj9pAF45')
+TOKEN_FILE     = getenv('DRIVE_TOKEN_FILE', str(Path(__file__).resolve().parent.parent / 'token_drive.json'))
 SCOPES         = ['https://www.googleapis.com/auth/drive']
 
 def obtener_servicio_drive():
