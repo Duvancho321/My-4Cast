@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - python=3.11
+  - python=3.12
   - xarray
   - zarr
   - netcdf4
@@ -28,6 +28,7 @@ dependencies:
     - imageio
     - imageio-ffmpeg
     - icechunk
+    - arraylake
     - gribberish
     - fastapi
     - uvicorn
