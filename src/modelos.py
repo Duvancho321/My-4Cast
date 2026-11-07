@@ -3,11 +3,12 @@ modelos.py — Registro centralizado de modelos de pronóstico y política de al
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.0"
+__version__: "0.2.1"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-06][Duvan]: Inclusión de ECMWF IFS HRES (0.1° determinista 15 días) vía Arraylake.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather; carpeta individual por fuente en Drive.
 """
 
@@ -44,7 +45,7 @@ dominios_plataforma = {
     }
 }
 
-#%% CATÁLOGO DE 11 FUENTES DE PRONÓSTICO PARA COLOMBIA (1 CANÓNICA + 10 EFÍMERAS)
+#%% CATÁLOGO DE 12 FUENTES DE PRONÓSTICO PARA COLOMBIA (1 CANÓNICA + 11 EFÍMERAS)
 modelos_colombia = {
     'wn3': {
         'id': 'wn3',
@@ -68,6 +69,25 @@ modelos_colombia = {
             'temperatura', 'viento', 'viento_100m', 'radiacion',
             'nubosidad_total', 'nubosidad_baja', 'nubosidad_media', 'nubosidad_alta'
         ]
+    },
+    'ecmwf_ifs_hres': {
+        'id': 'ecmwf_ifs_hres',
+        'carpeta': 'ECMWF_IFS_HRES',
+        'nombre': 'ECMWF IFS HRES 15-Day (Open)',
+        'etiqueta_corta': 'ECMWF IFS HRES · Físico (0.1°)',
+        'etiqueta_fuente': 'ECMWF IFS HRES · Físico Determinista (0.1°)',
+        'sello_mapa': 'ECMWF IFS HRES 0.1°\nFísico Determinista Open Data',
+        'tipo': 'Físico Determinista',
+        'resolucion': '0.1° (~10 km)',
+        'paso_h': 1,
+        'horizonte_h': 360,
+        'salto_quiver': 10,
+        'salto_web': 6,
+        'almacenamiento': 'efimero_visualizacion',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/ecmwf_ifs_hres.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/ECMWF_IFS_HRES',
+        'dir_fig': f'{DIR_BASE}/figures/ECMWF_IFS_HRES',
+        'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     },
     'ecmwf_ifs': {
         'id': 'ecmwf_ifs',
