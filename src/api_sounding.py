@@ -3,7 +3,7 @@ api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.1"
+__version__: "0.2.2"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
@@ -11,6 +11,7 @@ __changues__:
     - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.
     - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
     - [2026-11-06][Duvan]: Formato de hemisferio en nombre y altitud null para sondeos puntuales.
+    - [2026-11-07][Duvan]: Reload solo local; CORS sin credenciales.
 """
 
 from time import time
@@ -38,8 +39,8 @@ VENTANA_S      = 60.0
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
-    allow_credentials=True,
-    allow_methods=['GET', 'POST', 'OPTIONS'],
+    allow_credentials=False,
+    allow_methods=['GET', 'OPTIONS'],
     allow_headers=['*'])
 
 #%% CONTROL DE TASA (RATE LIMITING) POR CLIENTE
@@ -245,7 +246,10 @@ async def health():
     }
 
 @app.post('/api/reload')
-async def reload():
+async def reload(request: Request):
+    # Solo desde la propia máquina: todo lo que entra por el túnel de Cloudflare trae cf-connecting-ip.
+    if request.headers.get('cf-connecting-ip') or (request.client.host if request.client else '') not in ('127.0.0.1', '::1'):
+        raise HTTPException(status_code=403, detail='Recarga permitida solo desde el servidor.')
     extraer_sondeo_json.cache_clear()
     cache_modelos.clear()
     return {'status': 'cache limpiada exitosamente'}
