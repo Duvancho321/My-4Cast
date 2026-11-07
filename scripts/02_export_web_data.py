@@ -3,11 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.7.0"
+__version__: "0.7.1"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-06][Duvan]: Exportar institucion, familia y licencia de modelos.
     - [2026-11-05][Duvan]: Inclusión de todas las 32 capitales departamentales.
     - [2026-11-04][Duvan]: Paletas científicas y eliminación de emojis.
     - [2026-11-04][Duvan]: Radiación teórica ToA y PPT acumulada.
@@ -589,6 +590,9 @@ def exportar_modelo_web(model_id, cfg):
         'id': model_id,
         'carpeta': cfg['carpeta'],
         'nombre': cfg['nombre'],
+        'institucion': cfg.get('institucion', ''),
+        'familia': cfg.get('familia', ''),
+        'licencia': cfg.get('licencia', ''),
         'etiqueta_corta': cfg['etiqueta_corta'],
         'etiqueta_fuente': cfg['etiqueta_fuente'],
         'tipo': cfg['tipo'],
@@ -624,6 +628,9 @@ if __name__ == '__main__':
                 'id': m_id,
                 'carpeta': cfg['carpeta'],
                 'nombre': cfg['nombre'],
+                'institucion': cfg.get('institucion', ''),
+                'familia': cfg.get('familia', ''),
+                'licencia': cfg.get('licencia', ''),
                 'etiqueta_corta': cfg['etiqueta_corta'],
                 'etiqueta_fuente': cfg['etiqueta_fuente'],
                 'tipo': cfg['tipo'],

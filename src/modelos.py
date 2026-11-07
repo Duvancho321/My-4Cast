@@ -3,11 +3,12 @@ modelos.py — Registro centralizado de modelos de pronóstico y política de al
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.1"
+__version__: "0.2.2"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-06][Duvan]: Catálogo de licencias e instituciones para modal de créditos.
     - [2026-11-06][Duvan]: Inclusión de ECMWF IFS HRES (0.1° determinista 15 días) vía Arraylake.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather; carpeta individual por fuente en Drive.
 """
@@ -51,6 +52,9 @@ modelos_colombia = {
         'id': 'wn3',
         'carpeta': 'GOOGLE_WN3',
         'nombre': 'WeatherNext 3 (Google DeepMind)',
+        'institucion': 'Google DeepMind',
+        'familia': 'ia',
+        'licencia': 'Google Cloud Public Datasets (Términos de Investigación)',
         'etiqueta_corta': 'WeatherNext 3 · IA Ensamble (64m)',
         'etiqueta_fuente': 'WN3 · Google DeepMind (IA Ensamble)',
         'sello_mapa': 'WeatherNext 3\nGoogle DeepMind (IA 64m)',
@@ -74,6 +78,9 @@ modelos_colombia = {
         'id': 'ecmwf_ifs_hres',
         'carpeta': 'ECMWF_IFS_HRES',
         'nombre': 'ECMWF IFS HRES 15-Day (Open)',
+        'institucion': 'ECMWF / Brightband',
+        'familia': 'fisico',
+        'licencia': 'CC-BY-4.0 (Datos abiertos de ECMWF)',
         'etiqueta_corta': 'ECMWF IFS HRES · Físico (0.1°)',
         'etiqueta_fuente': 'ECMWF IFS HRES · Físico Determinista (0.1°)',
         'sello_mapa': 'ECMWF IFS HRES 0.1°\nFísico Determinista Open Data',
@@ -93,6 +100,9 @@ modelos_colombia = {
         'id': 'ecmwf_ifs',
         'carpeta': 'ECMWF_IFS',
         'nombre': 'ECMWF IFS ENS 15-Day (Open)',
+        'institucion': 'ECMWF',
+        'familia': 'fisico',
+        'licencia': 'CC-BY-4.0 (Datos abiertos de ECMWF)',
         'etiqueta_corta': 'ECMWF IFS · Físico Ensamble (51m)',
         'etiqueta_fuente': 'ECMWF IFS · Físico Ensamble (51m)',
         'sello_mapa': 'ECMWF IFS ENS (51m)\nFísico Open Data',
@@ -112,6 +122,9 @@ modelos_colombia = {
         'id': 'ecmwf_aifs_ens',
         'carpeta': 'ECMWF_AIFS_ENS',
         'nombre': 'ECMWF AIFS ENS 15-Day (Open)',
+        'institucion': 'ECMWF',
+        'familia': 'ia',
+        'licencia': 'CC-BY-4.0 (Datos abiertos de ECMWF)',
         'etiqueta_corta': 'ECMWF AIFS ENS · IA Ensamble (51m)',
         'etiqueta_fuente': 'ECMWF AIFS ENS · IA Ensamble (51m)',
         'sello_mapa': 'ECMWF AIFS ENS (51m)\nIA Ensamble Open Data',
@@ -131,6 +144,9 @@ modelos_colombia = {
         'id': 'ecmwf_aifs_single',
         'carpeta': 'ECMWF_AIFS_SINGLE',
         'nombre': 'ECMWF AIFS Single 15-Day (Open)',
+        'institucion': 'ECMWF',
+        'familia': 'ia',
+        'licencia': 'CC-BY-4.0 (Datos abiertos de ECMWF)',
         'etiqueta_corta': 'ECMWF AIFS Single · IA Determinista',
         'etiqueta_fuente': 'ECMWF AIFS Single · IA Determinista',
         'sello_mapa': 'ECMWF AIFS Single\nIA Determinista Open Data',
@@ -150,6 +166,9 @@ modelos_colombia = {
         'id': 'noaa_gfs',
         'carpeta': 'NOAA_GFS',
         'nombre': 'NOAA GFS 16-Day Forecast',
+        'institucion': 'NOAA NCEP',
+        'familia': 'fisico',
+        'licencia': 'Dominio público',
         'etiqueta_corta': 'NOAA GFS · Físico Determinista',
         'etiqueta_fuente': 'NOAA GFS · NCEP Físico (0.25°)',
         'sello_mapa': 'NOAA GFS 0.25°\nNCEP Físico Determinista',
@@ -169,6 +188,9 @@ modelos_colombia = {
         'id': 'dwd_icon',
         'carpeta': 'DWD_ICON',
         'nombre': 'DWD ICON Global (Open)',
+        'institucion': 'DWD',
+        'familia': 'fisico',
+        'licencia': 'Datos abiertos DWD (GeoNutzV)',
         'etiqueta_corta': 'DWD ICON · Físico (0.125°)',
         'etiqueta_fuente': 'DWD ICON Global · Físico (0.125°)',
         'sello_mapa': 'DWD ICON Global 0.125°\nDeutscher Wetterdienst',
@@ -188,6 +210,9 @@ modelos_colombia = {
         'id': 'chirps_gefs',
         'carpeta': 'UCSB_CHIRPS_GEFS',
         'nombre': 'UCSB CHIRPS-GEFS v3 16-Day',
+        'institucion': 'UC Santa Barbara CHC',
+        'familia': 'satelite',
+        'licencia': 'Dominio público (CHC Open Data)',
         'etiqueta_corta': 'CHIRPS-GEFS v3 · Satélite+GEFS (0.05°)',
         'etiqueta_fuente': 'CHIRPS-GEFS v3 · UCSB CHC (0.05°)',
         'sello_mapa': 'CHIRPS-GEFS v3 (0.05°)\nUCSB Climate Hazards Center',
@@ -207,6 +232,9 @@ modelos_colombia = {
         'id': 'graphcast_gfs',
         'carpeta': 'NOAA_GRAPHCAST_GFS',
         'nombre': 'GraphCast GFS (Google DeepMind / NOAA)',
+        'institucion': 'Google DeepMind / NOAA',
+        'familia': 'ia',
+        'licencia': 'Dominio público (NOAA MLWP)',
         'etiqueta_corta': 'GraphCast GFS · IA Determinista',
         'etiqueta_fuente': 'GraphCast GFS · Google / NOAA (IA)',
         'sello_mapa': 'GraphCast GFS (IA)\nGoogle DeepMind / NOAA MLWP',
@@ -226,6 +254,9 @@ modelos_colombia = {
         'id': 'aurora_gfs',
         'carpeta': 'NOAA_AURORA_GFS',
         'nombre': 'Microsoft Aurora GFS (NOAA MLWP)',
+        'institucion': 'Microsoft / NOAA MLWP',
+        'familia': 'ia',
+        'licencia': 'Dominio público (NOAA MLWP)',
         'etiqueta_corta': 'Microsoft Aurora · IA Determinista',
         'etiqueta_fuente': 'Aurora GFS · Microsoft / NOAA (IA)',
         'sello_mapa': 'Microsoft Aurora (IA)\nMicrosoft Research / NOAA MLWP',
@@ -245,6 +276,9 @@ modelos_colombia = {
         'id': 'fourcastnet_gfs',
         'carpeta': 'NOAA_FOURCASTNET_GFS',
         'nombre': 'NVIDIA FourCastNet v2 GFS (NOAA MLWP)',
+        'institucion': 'NVIDIA / NOAA MLWP',
+        'familia': 'ia',
+        'licencia': 'Dominio público (NOAA MLWP)',
         'etiqueta_corta': 'FourCastNet v2 · IA Determinista',
         'etiqueta_fuente': 'FourCastNet v2 · NVIDIA / NOAA (IA)',
         'sello_mapa': 'NVIDIA FourCastNet v2 (IA)\nNVIDIA / NOAA MLWP',
@@ -264,6 +298,9 @@ modelos_colombia = {
         'id': 'pangu_gfs',
         'carpeta': 'NOAA_PANGU_GFS',
         'nombre': 'Huawei Pangu-Weather GFS (NOAA MLWP)',
+        'institucion': 'Huawei / NOAA MLWP',
+        'familia': 'ia',
+        'licencia': 'Dominio público (NOAA MLWP)',
         'etiqueta_corta': 'Pangu-Weather · IA Determinista',
         'etiqueta_fuente': 'Pangu-Weather · Huawei / NOAA (IA)',
         'sello_mapa': 'Huawei Pangu-Weather (IA)\nHuawei Cloud / NOAA MLWP',
