@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install xarray zarr icechunk arraylake numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
+          pip install xarray zarr icechunk arraylake dask numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
 
       - name: Configure Arraylake credentials
         if: matrix.model == 'ecmwf_ifs_hres'
