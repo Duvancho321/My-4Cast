@@ -1,13 +1,14 @@
 """
-cloud_crop_multimodel.py — Recorte efímero en la nube de 10 modelos abiertos (GFS, IFS, AIFS ENS/Single, CHIRPS-GEFS, ICON, GraphCast, Aurora, FourCastNet v2, Pangu) para Colombia.
+cloud_crop_multimodel.py — Recorte efímero en la nube de 11 modelos abiertos (GFS, IFS ENS/HRES, AIFS ENS/Single, CHIRPS-GEFS, ICON, GraphCast, Aurora, FourCastNet v2, Pangu) para Colombia.
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.0"
+__version__: "0.3.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-06][Duvan]: Integración de ECMWF IFS HRES (0.1°) vía Arraylake / Icechunk v2.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather con concurrencia en ICON y CHIRPS-GEFS.
 """
 
@@ -26,7 +27,7 @@ from icechunk import Repository, s3_storage
 from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
-from numpy import arange, array, column_stack, flipud, float32, hypot, isnan, meshgrid, nan_to_num, nanpercentile, timedelta64, where, zeros
+from numpy import arange, array, clip, column_stack, diff, flipud, float32, hypot, isnan, meshgrid, nan_to_num, nanpercentile, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
 lat_min = -5.0
@@ -46,6 +47,16 @@ catalogo_modelos = {
         'bucket': 'dynamical-noaa-gfs',
         'prefix': 'noaa-gfs-forecast/v0.2.7.icechunk',
         'zarr_url': 'https://data.dynamical.org/noaa/gfs/forecast/latest.zarr',
+        'ensamble': False
+    },
+    'ecmwf_ifs_hres': {
+        'nombre': 'ECMWF IFS HRES 15-Day (Open)',
+        'organizacion': 'ECMWF / Brightband',
+        'tipo': 'Físico Determinista',
+        'resolucion': '0.1° (~10 km)',
+        'paso_h': 1,
+        'horizonte_h': 360,
+        'repo_arraylake': 'my-4cast/ecmwf-ifs-15-day-forecast-open-subscription',
         'ensamble': False
     },
     'ecmwf_ifs': {
@@ -266,6 +277,78 @@ def procesar_dynamical(model_id, cfg):
     }
     zip_out = guardar_zarr_estandar(model_id, init_val, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': str(init_val)[:19], 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
+#%% RECORTE DE ECMWF IFS HRES 0.1° (ARRAYLAKE / BRIGHTBAND)
+def procesar_ecmwf_ifs_hres(model_id, cfg):
+    from arraylake import Client
+    from xarray import open_dataset
+
+    print(f'\n[{model_id}] Conectando a Arraylake: {cfg["repo_arraylake"]}...', flush=True)
+    client  = Client()
+    repo    = client.get_repo(cfg['repo_arraylake'])
+    session = repo.readonly_session(branch='main')
+    ds      = open_dataset(session.store, engine='zarr', chunks={})
+
+    init_dt64 = ds.time.values[-1]
+    init_str  = str(init_dt64)[:19]
+    print(f'[{model_id}] Corrida activa seleccionada: {init_str} UTC', flush=True)
+
+    req_vars = ['2t', 'tp', '10u', '10v', '100u', '100v', 'ssrd', 'lcc', 'mcc', 'hcc']
+    print(f'[{model_id}] Descargando recorte espacial de Colombia (0.1°)...', flush=True)
+    sub = ds[req_vars].isel(time=-1).sel(
+        latitude=slice(lat_max, lat_min),
+        longitude=slice(lon_min, lon_max)
+    ).compute()
+
+    sub      = sub.isel(latitude=slice(None, None, -1))
+    lats_asc = sub.latitude.values.astype(float32)
+    lons_360 = (sub.longitude.values + 360.0).astype(float32)
+
+    leads_td = sub.step.values[1:].astype('timedelta64[ns]')
+    step_h   = (sub.step.values.astype('timedelta64[s]').astype(float)) / 3600.0
+    diff_h   = diff(step_h)
+
+    t2m_k = sub['2t'].values[1:].astype(float32)
+    u10   = sub['10u'].values[1:].astype(float32)
+    v10   = sub['10v'].values[1:].astype(float32)
+    w10   = hypot(u10, v10).astype(float32)
+    u100  = sub['100u'].values[1:].astype(float32)
+    v100  = sub['100v'].values[1:].astype(float32)
+    w100  = hypot(u100, v100).astype(float32)
+
+    tp_raw   = sub['tp'].values
+    tp_diff  = clip(diff(tp_raw, axis=0), 0.0, None)
+    ppt_rate = (tp_diff / diff_h[:, None, None]).astype(float32)
+
+    ssrd_raw  = sub['ssrd'].values
+    ssrd_diff = clip(diff(ssrd_raw, axis=0), 0.0, None)
+    ssrd_rate = (ssrd_diff / diff_h[:, None, None]).astype(float32)
+
+    lcc = clip(sub['lcc'].values[1:], 0.0, 1.0)
+    mcc = clip(sub['mcc'].values[1:], 0.0, 1.0)
+    hcc = clip(sub['hcc'].values[1:], 0.0, 1.0)
+    tcc = (1.0 - (1.0 - lcc) * (1.0 - mcc) * (1.0 - hcc)).astype(float32)
+
+    campos = {
+        'total_precipitation_1hr_p10':              ppt_rate,
+        'total_precipitation_1hr_p50':              ppt_rate,
+        'total_precipitation_1hr_p90':              ppt_rate,
+        'temperature_2m_p10':                       t2m_k,
+        'temperature_2m_p50':                       t2m_k,
+        'temperature_2m_p90':                       t2m_k,
+        'u_component_of_wind_10m_p50':              u10,
+        'v_component_of_wind_10m_p50':              v10,
+        'wind_speed_10m_p10':                       w10,
+        'wind_speed_10m_p50':                       w10,
+        'wind_speed_10m_p90':                       w10,
+        'u_component_of_wind_100m_p50':             u100,
+        'v_component_of_wind_100m_p50':             v100,
+        'wind_speed_100m_p50':                      w100,
+        'surface_solar_radiation_downwards_1hr_p50': ssrd_rate,
+        'total_cloud_cover_p50':                    tcc
+    }
+    zip_out = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
+    return {'model_id': model_id, 'init_time': init_str, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
 #%% RECORTE DE CHIRPS-GEFS V3 (UCSB CHC, 0.05° DIARIO 16 DÍAS)
 def procesar_chirps_gefs(model_id, cfg):
@@ -507,6 +590,8 @@ if __name__ == '__main__':
         try:
             if 'bucket' in cfg:
                 info_m = procesar_dynamical(m_id, cfg)
+            elif m_id == 'ecmwf_ifs_hres':
+                info_m = procesar_ecmwf_ifs_hres(m_id, cfg)
             elif m_id == 'chirps_gefs':
                 info_m = procesar_chirps_gefs(m_id, cfg)
             elif m_id == 'dwd_icon':

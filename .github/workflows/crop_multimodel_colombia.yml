@@ -24,6 +24,7 @@ jobs:
         model:
           - noaa_gfs
           - ecmwf_ifs
+          - ecmwf_ifs_hres
           - ecmwf_aifs_ens
           - ecmwf_aifs_single
           - chirps_gefs
@@ -44,7 +45,17 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install xarray zarr icechunk numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
+          pip install xarray zarr icechunk arraylake numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
+
+      - name: Configure Arraylake credentials
+        if: matrix.model == 'ecmwf_ifs_hres'
+        env:
+          ARRAYLAKE_TOKEN_JSON: ${{ secrets.ARRAYLAKE_TOKEN_JSON }}
+        run: |
+          if [ -n "$ARRAYLAKE_TOKEN_JSON" ]; then
+            mkdir -p ~/.arraylake
+            echo "$ARRAYLAKE_TOKEN_JSON" > ~/.arraylake/token.json
+          fi
 
       - name: Crop Colombia domain for ${{ matrix.model }}
         run: |
@@ -97,5 +108,5 @@ jobs:
             gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
               --repo "${{ github.repository }}" \
               --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
-              --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
+              --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS/HRES, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
           fi
