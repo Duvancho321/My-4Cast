@@ -3,11 +3,12 @@ modelos.py — Registro centralizado de modelos de pronóstico y política de al
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.2"
+__version__: "0.2.3"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-07][Duvan]: Unificar licencia CC0 para Aurora y Pangu en NOAA MLWP.
     - [2026-11-06][Duvan]: Catálogo de licencias e instituciones para modal de créditos.
     - [2026-11-06][Duvan]: Inclusión de ECMWF IFS HRES (0.1° determinista 15 días) vía Arraylake.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather; carpeta individual por fuente en Drive.
@@ -256,7 +257,7 @@ modelos_colombia = {
         'nombre': 'Microsoft Aurora GFS (NOAA MLWP)',
         'institucion': 'Microsoft / NOAA MLWP',
         'familia': 'ia',
-        'licencia': 'Dominio público (NOAA MLWP)',
+        'licencia': 'CC0 (productos NOAA)',
         'etiqueta_corta': 'Microsoft Aurora · IA Determinista',
         'etiqueta_fuente': 'Aurora GFS · Microsoft / NOAA (IA)',
         'sello_mapa': 'Microsoft Aurora (IA)\nMicrosoft Research / NOAA MLWP',
@@ -300,7 +301,7 @@ modelos_colombia = {
         'nombre': 'Huawei Pangu-Weather GFS (NOAA MLWP)',
         'institucion': 'Huawei / NOAA MLWP',
         'familia': 'ia',
-        'licencia': 'Dominio público (NOAA MLWP)',
+        'licencia': 'CC0 (productos NOAA)',
         'etiqueta_corta': 'Pangu-Weather · IA Determinista',
         'etiqueta_fuente': 'Pangu-Weather · Huawei / NOAA (IA)',
         'sello_mapa': 'Huawei Pangu-Weather (IA)\nHuawei Cloud / NOAA MLWP',
