@@ -10,6 +10,14 @@ LOG_DIR="$DIR_DATOS/logs"
 
 mkdir -p "$LOG_DIR"
 
+# Control de concurrencia: evitar ejecuciones simultáneas del pipeline
+LOCK_FILE="/tmp/my4cast_pipeline.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Otra instancia del pipeline está en ejecución. Saliendo sin cambios."
+    exit 0
+fi
+
 echo "=========================================================="
 echo "Inicio pipeline My-4Cast: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "=========================================================="
@@ -38,6 +46,9 @@ if [ $ESTADO_WN3 -eq 0 ] || [ $ESTADO_MOD -eq 0 ]; then
     git commit -m "chore: auto-update multimodel forecast $(date '+%Y-%m-%d %H:%M')" || true
     git push origin main
     cd "$DIR_PROYECTO"
+
+    # Recargar la caché del microservicio de sondeo local
+    curl -s -X POST http://localhost:8000/api/reload > /dev/null 2>&1 || true
 
     # 5. Generación de animaciones MP4 en carpetas separadas (WN3/ vs OTRAS_FUENTES/<MODELO>/)
     if [ $ESTADO_WN3 -eq 0 ]; then
