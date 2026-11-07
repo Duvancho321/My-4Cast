@@ -56,8 +56,9 @@ jobs:
         id: crop_colombia
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RUN_ID: ${{ github.event.inputs.run_id || 'auto' }}
         run: |
-          python scripts/cloud_crop_colombia.py "${{ github.event.inputs.run_id || 'auto' }}"
+          python scripts/cloud_crop_colombia.py "$INPUT_RUN_ID"
           if [ -f colombia_latest.zip ]; then
             split -b 1000M -d colombia_latest.zip colombia_part_
             rm -f colombia_*.zip

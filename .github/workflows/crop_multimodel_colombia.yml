@@ -58,11 +58,14 @@ jobs:
           fi
 
       - name: Crop Colombia domain for ${{ matrix.model }}
+        env:
+          INPUT_MODELS: ${{ github.event.inputs.models || 'all' }}
+          MODEL_NAME: ${{ matrix.model }}
         run: |
-          FILTER="${{ github.event.inputs.models || 'all' }}"
-          if [ "$FILTER" = "all" ] || echo ",$FILTER," | grep -q ",${{ matrix.model }},"; then
-            python scripts/cloud_crop_multimodel.py "${{ matrix.model }}"
-            mv models_manifest.json "manifest_${{ matrix.model }}.json" || true
+          FILTER="$INPUT_MODELS"
+          if [ "$FILTER" = "all" ] || echo ",$FILTER," | grep -q ",${MODEL_NAME},"; then
+            python scripts/cloud_crop_multimodel.py "$MODEL_NAME"
+            mv models_manifest.json "manifest_${MODEL_NAME}.json" || true
           fi
 
       - name: Upload cropped model artifact
