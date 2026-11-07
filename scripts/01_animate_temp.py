@@ -106,7 +106,7 @@ def animar_modelo_temp(model_id, cfg):
     def iterar_cuadros():
         for idx in range(n_pasos):
             lead_val  = ds.lead_time.values[idx]
-            lead_h    = int(lead_val / 3.6e12)
+            lead_h    = int(lead_val / timedelta64(1, 'h'))
             valid_ts  = init_ts + lead_val
             valid_str = f"{str(valid_ts)[:10]} {str(valid_ts)[11:13]}h HL"
             temp_arr  = (ds[var_temp].isel(init_time=-1, lead_time=idx).values - 273.15).ravel()
