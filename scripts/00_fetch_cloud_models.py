@@ -142,7 +142,7 @@ manifest = get(url_man, headers=headers_dl, timeout=20).json()
 with open(f'{dir_models}/models_manifest.json', 'w', encoding='utf-8') as fm:
     dump(manifest, fm, indent=2, ensure_ascii=False)
 
-#%% DESCARGA SECUENCIAL REGULADA (PROTECCIÓN DE RED UNAL + ALMACENAMIENTO EFÍMERO)
+#%% DESCARGA SECUENCIAL REGULADA (PROTECCIÓN DE RED LOCAL + ALMACENAMIENTO EFÍMERO)
 actualizados = 0
 for m_id, info_m in manifest.get('models', {}).items():
     if filtro != 'all' and m_id not in filtro.split(','):
