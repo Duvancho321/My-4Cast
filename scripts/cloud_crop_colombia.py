@@ -96,18 +96,20 @@ if __name__ == '__main__':
         except Exception:
             pass
 
-    ruta_sal = f'colombia_{run_id}.zarr'
-    ruta_zip = f'colombia_{run_id}'
+    modo      = argv[2] if len(argv) > 2 else 'all'
+    bases_uso = ['station_head_temperature_2m', 'station_head_dewpoint_temperature_2m'] if modo == '5km' else bases_sel
+    ruta_sal  = f'colombia_{run_id}.zarr'
+    ruta_zip  = f'colombia_{run_id}'
     
-    print(f'Procesando corrida: {run_id}', flush=True)
-    vars_validas = [v for v in ds_remoto.data_vars if any(v.startswith(b) for b in bases_sel)]
-    print(f'Variables seleccionadas para descarga ({len(vars_validas)}):', flush=True)
+    print(f'Procesando corrida: {run_id} (modo={modo})', flush=True)
+    vars_validas = [v for v in ds_remoto.data_vars if any(v.startswith(b) for b in bases_uso)]
+    print(f'Campos seleccionados para descarga ({len(vars_validas)}):', flush=True)
     
-    sub = (ds_remoto[vars_validas]
-        .sel(lat_0p1=slice(lat_min, lat_max), lon_0p1=slice(lon_min, lon_max),
-             lat_0p05=slice(lat_min, lat_max), lon_0p05=slice(lon_min, lon_max),
-             lead_time=slice(timedelta64(1, 'h'), timedelta64(360, 'h')))
-        .expand_dims('init_time'))
+    sel_kw = {'lat_0p05': slice(lat_min, lat_max), 'lon_0p05': slice(lon_min, lon_max), 'lead_time': slice(timedelta64(1, 'h'), timedelta64(360, 'h'))}
+    if modo != '5km':
+        sel_kw['lat_0p1'] = slice(lat_min, lat_max)
+        sel_kw['lon_0p1'] = slice(lon_min, lon_max)
+    sub = ds_remoto[vars_validas].sel(**sel_kw).expand_dims('init_time')
     
     sub['init_time'].encoding['units'] = 'hours since 2026-10-22 00:00:00'
     sub['init_time'].encoding['dtype'] = 'int64'
@@ -123,6 +125,6 @@ if __name__ == '__main__':
     
     init_val = str(sub.init_time.values[0])
     with open('manifest.json', 'w') as fm:
-        dump({'run_id': run_id, 'init_time': init_val}, fm)
+        dump({'run_id': run_id, 'init_time': init_val, 'mode': modo}, fm)
     
     print(f'Recorte exitoso empaquetado en: {ruta_zip}.zip y colombia_latest.zip', flush=True)
