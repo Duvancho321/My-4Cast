@@ -183,7 +183,7 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
             'lat': round(actual_lat, 4),
             'lon': round(actual_lon, 4),
             'altitud': None,
-            'tag': 'Malla ' + cfg['resolucion']
+            'tag': 'Malla 0.1° (~11 km)' if (model_id == 'wn3' and not t_var.startswith('station_head')) else 'Malla ' + cfg['resolucion']
         },
         'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},
         'precipitacion': {

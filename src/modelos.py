@@ -3,11 +3,12 @@ modelos.py — Registro centralizado de modelos de pronóstico y política de al
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.3"
+__version__: "0.2.4"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-08][Duvan]: Resolucion dual 0.05°/0.1° en metadatos de WeatherNext 3.
     - [2026-11-07][Duvan]: Unificar licencia CC0 para Aurora y Pangu en NOAA MLWP.
     - [2026-11-06][Duvan]: Catálogo de licencias e instituciones para modal de créditos.
     - [2026-11-06][Duvan]: Inclusión de ECMWF IFS HRES (0.1° determinista 15 días) vía Arraylake.
@@ -60,7 +61,7 @@ modelos_colombia = {
         'etiqueta_fuente': 'WN3 · Google DeepMind (IA Ensamble)',
         'sello_mapa': 'WeatherNext 3\nGoogle DeepMind (IA 64m)',
         'tipo': 'IA Ensamble (64 miembros)',
-        'resolucion': '0.1° (~11 km)',
+        'resolucion': '0.05° / 0.1° (~5–11 km)',
         'paso_h': 1,
         'horizonte_h': 360,
         'salto_quiver': 10,
