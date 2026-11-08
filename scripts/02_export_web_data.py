@@ -3,11 +3,12 @@
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.7.1"
+__version__: "0.7.2"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-08][Duvan]: Acumulado PPT con paso real (pasos variables).
     - [2026-11-06][Duvan]: Exportar institucion, familia y licencia de modelos.
     - [2026-11-05][Duvan]: Inclusión de todas las 32 capitales departamentales.
     - [2026-11-04][Duvan]: Paletas científicas y eliminación de emojis.
@@ -26,7 +27,7 @@ from xarray import open_zarr
 from pandas import to_datetime
 from src.modelos import dominios_plataforma, modelos_colombia
 from src.paletas import cmap_nubosidad, cmap_ppt, cmap_radiacion, cmap_temp, cmap_viento, norm_nubosidad, norm_ppt, norm_radiacion, norm_temp, norm_viento
-from numpy import arctan2, cos, cumsum, deg2rad, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8, zeros
+from numpy import arctan2, array, cos, cumsum, deg2rad, diff, flipud, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, uint8, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y RUTAS
 dir_web_base = f"{getenv('MY4CAST_DATA_DIR', '/mnt/datos/dnieves/WN3')}/web_data"
@@ -509,7 +510,8 @@ def exportar_modelo_web(model_id, cfg):
         cos_z   = sin(lat_rad) * sin(rc_dec) + cos(lat_rad) * cos(rc_dec) * cos(omega)
         rad_toa = round(maximum(0.0, 1361.0 * rc_dis * cos_z), 0).astype(int).tolist()
 
-        paso_f = float(cfg['paso_h']) if cfg['paso_h'] < 24 else 1.0
+        # PPT es tasa (mm/h) en pasos sub-diarios; el acumulado usa la duración real de cada intervalo (GFS, IFS y HRES cambian de paso).
+        paso_f = diff([0] + lead_horas) if cfg['paso_h'] < 24 else 1.0
         resultado['estaciones'][k] = {
             'info': info,
             'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},
@@ -517,9 +519,9 @@ def exportar_modelo_web(model_id, cfg):
                 'p10': ppt_p10,
                 'p50': ppt_p50,
                 'p90': ppt_p90,
-                'acumulada_p10': round(cumsum(ppt_p10) * paso_f, 2).tolist(),
-                'acumulada': round(cumsum(ppt_p50) * paso_f, 2).tolist(),
-                'acumulada_p90': round(cumsum(ppt_p90) * paso_f, 2).tolist()
+                'acumulada_p10': round(cumsum(array(ppt_p10) * paso_f), 2).tolist(),
+                'acumulada': round(cumsum(array(ppt_p50) * paso_f), 2).tolist(),
+                'acumulada_p90': round(cumsum(array(ppt_p90) * paso_f), 2).tolist()
             },
             'precipitacion_imerg': {'p50': imerg_p50},
             'precipitacion_exp': {'p50': exptp_p50},

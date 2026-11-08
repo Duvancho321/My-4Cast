@@ -3,7 +3,7 @@ api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.2"
+__version__: "0.2.3"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
@@ -12,6 +12,7 @@ __changues__:
     - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
     - [2026-11-06][Duvan]: Formato de hemisferio en nombre y altitud null para sondeos puntuales.
     - [2026-11-07][Duvan]: Reload solo local; CORS sin credenciales.
+    - [2026-11-08][Duvan]: Acumulado PPT con paso real.
 """
 
 from time import time
@@ -24,7 +25,7 @@ from os.path import exists, getmtime
 from src.modelos import modelos_colombia
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from numpy import arctan2, cos, cumsum, deg2rad, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, zeros
+from numpy import arctan2, array, cos, cumsum, deg2rad, diff, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y CONTROL DE CONCURRENCIA
 app            = FastAPI(title='My-4Cast Sounding API', version='0.2.0')
@@ -111,7 +112,7 @@ def obtener_modelo(model_id):
         'rc_dis': rc_dis,
         'rc_dec': rc_dec,
         'utc_hour': utc_hour,
-        'paso_f': float(cfg['paso_h']) if cfg['paso_h'] < 24 else 1.0
+        'paso_f': diff([0] + lead_horas) if cfg['paso_h'] < 24 else 1.0
     }
     return cache_modelos[model_id]
 
@@ -185,9 +186,9 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
             'p10': ppt_p10,
             'p50': ppt_p50,
             'p90': ppt_p90,
-            'acumulada_p10': round(cumsum(ppt_p10) * paso_f, 2).tolist(),
-            'acumulada': round(cumsum(ppt_p50) * paso_f, 2).tolist(),
-            'acumulada_p90': round(cumsum(ppt_p90) * paso_f, 2).tolist()
+            'acumulada_p10': round(cumsum(array(ppt_p10) * paso_f), 2).tolist(),
+            'acumulada': round(cumsum(array(ppt_p50) * paso_f), 2).tolist(),
+            'acumulada_p90': round(cumsum(array(ppt_p90) * paso_f), 2).tolist()
         },
         'precipitacion_imerg': {'p50': imerg_p50},
         'precipitacion_exp': {'p50': exptp_p50},
