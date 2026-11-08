@@ -156,18 +156,22 @@ if not ya_extraida:
     with open(ruta_tmp, 'wb') as f_out:
         for a in assets:
             print(f"Descargando parte {a['name']} ({a['size'] / 1e6:.1f} MB, máx {max_mb_seg} MB/s)...", flush=True)
-            url_dl = a['url'] if token_gh else a['browser_download_url']
-            req_dl = Request(url_dl, headers=headers_dl)
-            with urlopen(req_dl) as resp:
-                while True:
-                    t_ini = monotonic()
-                    chunk = resp.read(tam_bloque)
-                    if not chunk:
-                        break
-                    f_out.write(chunk)
-                    t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
-                    if t_esp > 0:
-                        sleep(t_esp)
+            url_dl   = a['url'] if token_gh else a['browser_download_url']
+            tam_esp  = a['size']
+            recibido = 0
+            while recibido < tam_esp:
+                hdrs_r = {**headers_dl, 'Range': f'bytes={recibido}-'} if recibido > 0 else headers_dl
+                with urlopen(Request(url_dl, headers=hdrs_r), timeout=120) as resp:
+                    while True:
+                        t_ini = monotonic()
+                        chunk = resp.read(tam_bloque)
+                        if not chunk:
+                            break
+                        f_out.write(chunk)
+                        recibido += len(chunk)
+                        t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
+                        if t_esp > 0:
+                            sleep(t_esp)
 
     print('Descarga y ensamblado completados. Extrayendo...', flush=True)
     rmtree(ruta_dir, ignore_errors=True)
