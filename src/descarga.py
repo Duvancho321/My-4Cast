@@ -3,21 +3,23 @@ descarga.py — Ingesta y validación modular de corridas de WeatherNext 3.
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.3.0"
+__version__: "0.3.1"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-08][Duvan]: Inicializacion perezosa (Dask compute=False) sin uso de RAM.
     - [2026-11-08][Duvan]: Inicializacion atomica de variables nuevas (5 km) en append.
     - [2026-10-29][Duvan]: Soporte para streaming de todas las 126 variables.
 """
 
 from shutil import rmtree
 from os.path import exists
+from dask.array import full
 from obstore.store import GCSStore
 from zarr.storage import ObjectStore
 from xarray import Dataset, open_zarr
-from numpy import datetime64, full, nan, timedelta64
+from numpy import datetime64, nan, timedelta64
 
 #%% CONFIGURACIÓN CANÓNICA
 lat_min    = -5.0
@@ -132,13 +134,11 @@ def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
                 da       = ds_nueva[mv]
                 dims_mv  = ('init_time',) + tuple(d for d in da.dims if d != 'init_time')
                 shape_mv = (n_prev,) + tuple(len(ds_nueva[d]) for d in da.dims if d != 'init_time')
-                dict_init[mv] = (dims_mv, full(shape_mv, nan, dtype=da.dtype))
-            coords_init = {'init_time': ds_existente.init_time}
-            for mv in vars_faltantes:
-                for d in ds_nueva[mv].dims:
-                    if d != 'init_time' and d not in coords_init:
-                        coords_init[d] = ds_nueva[d]
-            ds_missing = Dataset(dict_init, coords=coords_init)
-            ds_missing.to_zarr(ruta_zarr, mode='a')
+                chks_mv  = da.encoding.get('chunks') or ((1,) + shape_mv[1:])
+                dict_init[mv] = (dims_mv, full(shape_mv, nan, chunks=chks_mv, dtype=da.dtype))
+            coords_nuevas = {d: ds_nueva[d] for mv in vars_faltantes for d in ds_nueva[mv].dims if d not in ds_existente.coords}
+            if coords_nuevas:
+                Dataset(coords=coords_nuevas).to_zarr(ruta_zarr, mode='a')
+            Dataset(dict_init).to_zarr(ruta_zarr, mode='a', compute=False)
         ds_nueva.to_zarr(ruta_zarr, mode='a', append_dim='init_time')
     rmtree(ruta_tmp, ignore_errors=True)
