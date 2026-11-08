@@ -3,11 +3,12 @@ descarga.py — Ingesta y validación modular de corridas de WeatherNext 3.
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.3.1"
+__version__: "0.3.2"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-08][Duvan]: Escritura in-place por region si init_time ya existe.
     - [2026-11-08][Duvan]: Inicializacion perezosa (Dask compute=False) sin uso de RAM.
     - [2026-11-08][Duvan]: Inicializacion atomica de variables nuevas (5 km) en append.
     - [2026-10-29][Duvan]: Soporte para streaming de todas las 126 variables.
@@ -19,7 +20,7 @@ from dask.array import full
 from obstore.store import GCSStore
 from zarr.storage import ObjectStore
 from xarray import Dataset, open_zarr
-from numpy import datetime64, nan, timedelta64
+from numpy import datetime64, nan, timedelta64, where
 
 #%% CONFIGURACIÓN CANÓNICA
 lat_min    = -5.0
@@ -141,6 +142,12 @@ def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp=None):
             if coords_nuevas:
                 Dataset(coords=coords_nuevas).to_zarr(ruta_zarr, mode='a')
             Dataset(dict_init).to_zarr(ruta_zarr, mode='a', compute=False)
-        ds_nueva.to_zarr(ruta_zarr, mode='a', append_dim='init_time')
+        t_nuevo = ds_nueva.init_time.values[0]
+        idxs    = where(ds_existente.init_time.values == t_nuevo)[0]
+        if len(idxs) > 0:
+            idx = int(idxs[0])
+            ds_nueva.drop_vars(list(ds_nueva.coords)).to_zarr(ruta_zarr, region={'init_time': slice(idx, idx + 1)})
+        else:
+            ds_nueva.to_zarr(ruta_zarr, mode='a', append_dim='init_time')
     if ruta_tmp:
         rmtree(ruta_tmp, ignore_errors=True)
