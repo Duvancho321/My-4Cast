@@ -475,11 +475,14 @@ def exportar_modelo_web(model_id, cfg):
         lat_t = info['lat']
         lon_t = 360.0 + info['lon'] if info['lon'] < 0 else info['lon']
         pt    = latest.sel(lat_0p1=lat_t, lon_0p1=lon_t, method='nearest')
+        pt_05 = latest.sel(lat_0p05=lat_t, lon_0p05=lon_t, method='nearest') if 'lat_0p05' in latest.coords else pt
         ceros_pt = zeros(n_frames, dtype=float)
 
-        t2m_p50 = round(nan_to_num(pt['temperature_2m_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
-        t2m_p10 = round(nan_to_num(pt['temperature_2m_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
-        t2m_p90 = round(nan_to_num(pt['temperature_2m_p90'].values.astype(float) - 273.15, nan=25.0), 1).tolist()
+        t_var = 'station_head_temperature_2m' if ('station_head_temperature_2m_p50' in latest.data_vars and not isnan(pt_05['station_head_temperature_2m_p50'].values).all()) else 'temperature_2m'
+        pt_t  = pt_05 if t_var.startswith('station_head') else pt
+        t2m_p50 = round(nan_to_num(pt_t[f'{t_var}_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
+        t2m_p10 = round(nan_to_num(pt_t[f'{t_var}_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
+        t2m_p90 = round(nan_to_num(pt_t[f'{t_var}_p90'].values.astype(float) - 273.15, nan=25.0), 1).tolist()
 
         ppt_p50 = round(nan_to_num(pt['total_precipitation_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
         ppt_p10 = round(nan_to_num(pt['total_precipitation_1hr_p10'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
@@ -553,11 +556,12 @@ def exportar_modelo_web(model_id, cfg):
         dump(vec_data, fv, separators=(',', ':'))
 
     #%% GENERACIÓN DE FRAMES ESPACIALES CON PALETAS OFICIALES
+    t_capa = 'station_head_temperature_2m_p50' if ('station_head_temperature_2m_p50' in latest.data_vars and not isnan(latest['station_head_temperature_2m_p50'].values).all()) else 'temperature_2m_p50'
     todas_capas = [
         ('precipitacion',       'total_precipitation_1hr_p50',              1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
         ('precipitacion_imerg', 'imerg_tp_1hr_p50',                         1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
         ('precipitacion_exp',   'experimental_tp_1hr_p50',                  1000.0, 0.0,     cmap_ppt,       norm_ppt,       0.1,  0.85),
-        ('temperatura',         'temperature_2m_p50',                       1.0,    -273.15, cmap_temp,      norm_temp,      None, 0.72),
+        ('temperatura',         t_capa,                                     1.0,    -273.15, cmap_temp,      norm_temp,      None, 0.72),
         ('viento',              'wind_speed_10m_p50',                       1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
         ('viento_100m',         'wind_speed_100m_p50',                      1.0,    0.0,     cmap_viento,    norm_viento,    0.5,  0.80),
         ('radiacion',           'surface_solar_radiation_downwards_1hr_p50', 1/3600, 0.0,     cmap_radiacion, norm_radiacion, 50.0, 0.82),

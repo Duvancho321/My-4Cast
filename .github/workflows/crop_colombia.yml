@@ -78,5 +78,5 @@ jobs:
           gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$RUN_TAG" colombia_part_* manifest.json \
             --title "WeatherNext 3 Colombia - $RUN_ID" \
-            --notes "Recorte automatico para Colombia: corrida $RUN_ID con 15 variables fisicas seleccionadas." \
+            --notes "Recorte automatico para Colombia: corrida $RUN_ID con 17 variables fisicas seleccionadas (incluye station heads 5 km)." \
             --latest

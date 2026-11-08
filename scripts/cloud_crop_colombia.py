@@ -3,11 +3,12 @@ cloud_crop_colombia.py — Extracción y recorte de WeatherNext 3 para Colombia 
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.1.0"
+__version__: "0.2.0"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-08][Duvan]: Incorporacion de station heads de 5 km (t2m y d2m).
     - [2026-11-03][Duvan]: Worker de recorte para 15 variables fisicas seleccionadas.
 """
 
@@ -41,6 +42,8 @@ bases_sel  = [
     'v_component_of_wind_100m',
     'wind_speed_100m',
     'temperature_2m',
+    'station_head_temperature_2m',
+    'station_head_dewpoint_temperature_2m',
     'surface_solar_radiation_downwards_1hr',
     'total_cloud_cover',
     'low_cloud_cover',
@@ -102,6 +105,7 @@ if __name__ == '__main__':
     
     sub = (ds_remoto[vars_validas]
         .sel(lat_0p1=slice(lat_min, lat_max), lon_0p1=slice(lon_min, lon_max),
+             lat_0p05=slice(lat_min, lat_max), lon_0p05=slice(lon_min, lon_max),
              lead_time=slice(timedelta64(1, 'h'), timedelta64(360, 'h')))
         .expand_dims('init_time'))
     

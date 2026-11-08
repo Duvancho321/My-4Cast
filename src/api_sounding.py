@@ -3,16 +3,17 @@ api_sounding.py — Microservicio FastAPI de sondeo puntual sobre mallas Zarr de
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.3"
+__version__: "0.2.4"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
-    - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.
-    - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
-    - [2026-11-06][Duvan]: Formato de hemisferio en nombre y altitud null para sondeos puntuales.
-    - [2026-11-07][Duvan]: Reload solo local; CORS sin credenciales.
+    - [2026-11-08][Duvan]: Consulta puntual t2m en malla 5 km station head si existe.
     - [2026-11-08][Duvan]: Acumulado PPT con paso real.
+    - [2026-11-07][Duvan]: Reload solo local; CORS sin credenciales.
+    - [2026-11-06][Duvan]: Formato de hemisferio en nombre y altitud null para sondeos puntuales.
+    - [2026-11-06][Duvan]: Rate limiting sliding window por IP y telemetría de monitoreo.
+    - [2026-11-05][Duvan]: Servicio asíncrono con LRU cache y headers CDN.
 """
 
 from time import time
@@ -128,16 +129,19 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
     n_frames = entry['n_frames']
     lon_t    = 360.0 + lon_r if lon_r < 0 else lon_r
     pt       = cand.sel(lat_0p1=lat_r, lon_0p1=lon_t, method='nearest')
+    pt_05    = cand.sel(lat_0p05=lat_r, lon_0p05=lon_t, method='nearest') if 'lat_0p05' in cand.coords else pt
+    t_var    = 'station_head_temperature_2m' if ('station_head_temperature_2m_p50' in cand.data_vars and not isnan(pt_05['station_head_temperature_2m_p50'].values).all()) else 'temperature_2m'
+    pt_t     = pt_05 if t_var.startswith('station_head') else pt
 
-    actual_lat = float(pt.lat_0p1.values)
-    actual_lon = float(pt.lon_0p1.values)
+    actual_lat = float(pt_t.lat_0p05.values if hasattr(pt_t, 'lat_0p05') else pt.lat_0p1.values)
+    actual_lon = float(pt_t.lon_0p05.values if hasattr(pt_t, 'lon_0p05') else pt.lon_0p1.values)
     if actual_lon > 180:
         actual_lon -= 360.0
 
     ceros_pt = zeros(n_frames, dtype=float)
-    t2m_p50  = round(nan_to_num(pt['temperature_2m_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
-    t2m_p10  = round(nan_to_num(pt['temperature_2m_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
-    t2m_p90  = round(nan_to_num(pt['temperature_2m_p90'].values.astype(float) - 273.15, nan=25.0), 1).tolist()
+    t2m_p50  = round(nan_to_num(pt_t[f'{t_var}_p50'].values.astype(float) - 273.15, nan=20.0), 1).tolist()
+    t2m_p10  = round(nan_to_num(pt_t[f'{t_var}_p10'].values.astype(float) - 273.15, nan=15.0), 1).tolist()
+    t2m_p90  = round(nan_to_num(pt_t[f'{t_var}_p90'].values.astype(float) - 273.15, nan=25.0), 1).tolist()
 
     ppt_p50  = round(nan_to_num(pt['total_precipitation_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
     ppt_p10  = round(nan_to_num(pt['total_precipitation_1hr_p10'].values.astype(float) * 1000.0, nan=0.0), 2).tolist()
