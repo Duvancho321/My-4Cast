@@ -179,8 +179,9 @@ ds_nueva  = open_zarr(ruta_dir)
 init_time = ds_nueva.init_time.values[-1]
 print(f'Integrando corrida {init_time} al Zarr local...', flush=True)
 
-apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_stage)
+apilar_corrida_zarr(ds_nueva, ruta_zarr)
 rmtree(ruta_dir, ignore_errors=True)
+rmtree(ruta_stage, ignore_errors=True)
 if exists(ruta_tmp):
     remove(ruta_tmp)
 

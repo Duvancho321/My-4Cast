@@ -101,7 +101,7 @@ def descargar_corrida_wn3(run_id, lead_horas=360, tipo_vars='all'):
         .expand_dims('init_time'))
 
 
-def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
+def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp=None):
     """
     Escribe o añade de forma atómica una corrida al almacén Zarr local.
 
@@ -111,17 +111,18 @@ def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
         Dataset recortado con dimensión 'init_time' a almacenar.
     ruta_zarr : str
         Ruta absoluta al almacén Zarr de destino.
-    ruta_tmp : str
+    ruta_tmp : str, optional
         Ruta temporal de staging para garantizar escritura atómica.
 
     Returns
     -------
     None
     """
-    rmtree(ruta_tmp, ignore_errors=True)
     ds_nueva['init_time'].encoding['units'] = 'hours since 2026-10-22 00:00:00'
     ds_nueva['init_time'].encoding['dtype'] = 'int64'
-    ds_nueva.to_zarr(ruta_tmp, mode='w')
+    if ruta_tmp:
+        rmtree(ruta_tmp, ignore_errors=True)
+        ds_nueva.to_zarr(ruta_tmp, mode='w')
     if not exists(ruta_zarr):
         ds_nueva.to_zarr(ruta_zarr, mode='w')
     else:
@@ -141,4 +142,5 @@ def apilar_corrida_zarr(ds_nueva, ruta_zarr, ruta_tmp):
                 Dataset(coords=coords_nuevas).to_zarr(ruta_zarr, mode='a')
             Dataset(dict_init).to_zarr(ruta_zarr, mode='a', compute=False)
         ds_nueva.to_zarr(ruta_zarr, mode='a', append_dim='init_time')
-    rmtree(ruta_tmp, ignore_errors=True)
+    if ruta_tmp:
+        rmtree(ruta_tmp, ignore_errors=True)
