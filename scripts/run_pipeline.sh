@@ -18,6 +18,13 @@ if ! flock -n 200; then
     exit 0
 fi
 
+# Auto-curación del microservicio de sondeo local
+if ! curl -sf http://127.0.0.1:8000/api/health > /dev/null 2>&1; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reiniciando sounding_api en GNU Screen..."
+    screen -S sounding_api -X quit 2>/dev/null || true
+    cd "$DIR_PROYECTO" && screen -dmS sounding_api bash -c "${PYTHON%/*}/uvicorn src.api_sounding:app --host 127.0.0.1 --port 8000 > $LOG_DIR/sounding_api.log 2>&1"
+fi
+
 echo "=========================================================="
 echo "Inicio pipeline My-4Cast: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "=========================================================="
