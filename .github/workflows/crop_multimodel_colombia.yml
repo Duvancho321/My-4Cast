@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install xarray zarr icechunk arraylake dask numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
+          pip install xarray zarr icechunk arraylake obstore dask numpy scipy rasterio gribberish fsspec aiohttp requests h5py h5netcdf
 
       - name: Configure Arraylake credentials
         if: matrix.model == 'ecmwf_ifs_hres'
@@ -55,6 +55,7 @@ jobs:
           if [ -n "$ARRAYLAKE_TOKEN_JSON" ]; then
             mkdir -p ~/.arraylake
             echo "$ARRAYLAKE_TOKEN_JSON" > ~/.arraylake/token.json
+            cp ~/.arraylake/token.json /tmp/token_before.json
           fi
 
       - name: Crop Colombia domain for ${{ matrix.model }}
@@ -66,6 +67,18 @@ jobs:
           if [ "$FILTER" = "all" ] || echo ",$FILTER," | grep -q ",${MODEL_NAME},"; then
             python scripts/cloud_crop_multimodel.py "$MODEL_NAME"
             mv models_manifest.json "manifest_${MODEL_NAME}.json" || true
+          fi
+
+      - name: Persist rotated Arraylake token to GitHub Secret
+        if: always() && matrix.model == 'ecmwf_ifs_hres'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_SECRETS }}
+        run: |
+          if [ -n "$GH_TOKEN" ] && [ -f ~/.arraylake/token.json ] && [ -f /tmp/token_before.json ]; then
+            if ! cmp -s ~/.arraylake/token.json /tmp/token_before.json; then
+              gh secret set ARRAYLAKE_TOKEN_JSON --repo "${{ github.repository }}" < ~/.arraylake/token.json
+              echo "Secreto ARRAYLAKE_TOKEN_JSON actualizado automáticamente tras rotación OAuth."
+            fi
           fi
 
       - name: Upload cropped model artifact
@@ -94,9 +107,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd artifacts_in
+          RUN_TAG="colombia-models-latest"
+          mkdir -p prev_man
+          gh release download "$RUN_TAG" --repo "${{ github.repository }}" -p "models_manifest.json" -D prev_man 2>/dev/null || true
           python3 -c "
-          import glob, json, datetime
+          import glob, json, datetime, os
           merged = {'updated_utc': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
+          if os.path.exists('prev_man/models_manifest.json'):
+              try:
+                  merged['models'].update(json.load(open('prev_man/models_manifest.json')).get('models', {}))
+              except Exception:
+                  pass
           for fn in sorted(glob.glob('manifest_*.json')):
               data = json.load(open(fn))
               merged['models'].update(data.get('models', {}))
@@ -105,11 +126,14 @@ jobs:
           print('Merged models:', list(merged['models'].keys()))
           "
           if ls colombia_*.zip 1> /dev/null 2>&1; then
-            RUN_TAG="colombia-models-latest"
             TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
-            gh release delete "$RUN_TAG" --repo "${{ github.repository }}" --yes --cleanup-tag 2>/dev/null || true
-            gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
-              --repo "${{ github.repository }}" \
-              --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
-              --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS/HRES, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
+            if gh release view "$RUN_TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+              gh release upload "$RUN_TAG" colombia_*.zip models_manifest.json \
+                --repo "${{ github.repository }}" --clobber
+            else
+              gh release create "$RUN_TAG" colombia_*.zip models_manifest.json \
+                --repo "${{ github.repository }}" \
+                --title "Multi-Model Colombia Ephemeral Crops - $TIMESTAMP" \
+                --notes "Recortes efimeros para visualizacion y animaciones sobre Colombia (NOAA GFS, ECMWF IFS ENS/HRES, ECMWF AIFS ENS/Single, CHIRPS-GEFS v3, DWD ICON Global, GraphCast GFS, Microsoft Aurora, NVIDIA FourCastNet v2, Huawei Pangu-Weather). Sin acumulacion historica."
+            fi
           fi

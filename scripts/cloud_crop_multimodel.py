@@ -3,17 +3,18 @@ cloud_crop_multimodel.py — Recorte efímero en la nube de 11 modelos abiertos 
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.3.0"
+__version__: "0.3.1"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-10][Duvan]: Fallback sin token a gs://ecmwf-open-data (0.1°) para HRES.
     - [2026-11-06][Duvan]: Integración de ECMWF IFS HRES (0.1°) vía Arraylake / Icechunk v2.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather con concurrencia en ICON y CHIRPS-GEFS.
 """
 
 from sys import argv
-from json import dump
+from json import dump, loads
 from h5py import File
 from bz2 import decompress
 from fsspec import filesystem
@@ -278,55 +279,111 @@ def procesar_dynamical(model_id, cfg):
     zip_out = guardar_zarr_estandar(model_id, init_val, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': str(init_val)[:19], 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
-#%% RECORTE DE ECMWF IFS HRES 0.1° (ARRAYLAKE / BRIGHTBAND)
+#%% RECORTE DE ECMWF IFS HRES 0.1° (ARRAYLAKE CON FALLBACK AUTOMÁTICO A GCS OPEN DATA)
 def procesar_ecmwf_ifs_hres(model_id, cfg):
-    from arraylake import Client
-    from xarray import open_dataset
-
-    print(f'\n[{model_id}] Conectando a Arraylake: {cfg["repo_arraylake"]}...', flush=True)
-    client  = Client()
-    repo    = client.get_repo(cfg['repo_arraylake'])
-    session = repo.readonly_session(branch='main')
-    ds      = open_dataset(session.store, engine='zarr', chunks={})
-
-    init_dt64 = ds.time.values[-1]
-    init_str  = str(init_dt64)[:19]
-    print(f'[{model_id}] Corrida activa seleccionada: {init_str} UTC', flush=True)
-
     req_vars = ['2t', 'tp', '10u', '10v', '100u', '100v', 'ssrd', 'lcc', 'mcc', 'hcc']
-    print(f'[{model_id}] Descargando recorte espacial de Colombia (0.1°)...', flush=True)
-    sub = ds[req_vars].isel(time=-1).sel(
-        latitude=slice(lat_max, lat_min),
-        longitude=slice(lon_min, lon_max)
-    ).compute()
+    try:
+        from arraylake import Client
+        from xarray import open_dataset
 
-    sub      = sub.isel(latitude=slice(None, None, -1))
-    lats_asc = sub.latitude.values.astype(float32)
-    lons_360 = (sub.longitude.values + 360.0).astype(float32)
+        print(f'\n[{model_id}] Conectando a Arraylake: {cfg["repo_arraylake"]}...', flush=True)
+        client  = Client()
+        repo    = client.get_repo(cfg['repo_arraylake'])
+        session = repo.readonly_session(branch='main')
+        ds      = open_dataset(session.store, engine='zarr', chunks={})
 
-    leads_td = sub.step.values[1:].astype('timedelta64[ns]')
-    step_h   = (sub.step.values.astype('timedelta64[s]').astype(float)) / 3600.0
-    diff_h   = diff(step_h)
+        t_idx = -1
+        for idx in [-1, -2, -3, -4]:
+            v_chk = ds['2t'].isel(time=idx, step=-1).sel(latitude=4.6, longitude=-74.0, method='nearest').values
+            if not isnan(v_chk).all():
+                t_idx = idx
+                break
 
-    t2m_k = sub['2t'].values[1:].astype(float32)
-    u10   = sub['10u'].values[1:].astype(float32)
-    v10   = sub['10v'].values[1:].astype(float32)
-    w10   = hypot(u10, v10).astype(float32)
-    u100  = sub['100u'].values[1:].astype(float32)
-    v100  = sub['100v'].values[1:].astype(float32)
-    w100  = hypot(u100, v100).astype(float32)
+        init_dt64 = ds.time.values[t_idx]
+        init_str  = str(init_dt64)[:19]
+        print(f'[{model_id}] Corrida activa seleccionada (Arraylake): {init_str} UTC', flush=True)
 
-    tp_raw   = sub['tp'].values
-    tp_diff  = clip(diff(tp_raw, axis=0), 0.0, None)
+        sub = ds[req_vars].isel(time=t_idx).sel(
+            latitude=slice(lat_max, lat_min),
+            longitude=slice(lon_min, lon_max)
+        ).compute()
+
+        sub      = sub.isel(latitude=slice(None, None, -1))
+        lats_asc = sub.latitude.values.astype(float32)
+        lons_360 = (sub.longitude.values + 360.0).astype(float32)
+        leads_td = sub.step.values[1:].astype('timedelta64[ns]')
+        step_h   = (sub.step.values.astype('timedelta64[s]').astype(float)) / 3600.0
+        raw_map  = {v: sub[v].values.astype(float32) for v in req_vars}
+    except Exception as e_al:
+        print(f'[{model_id}] Arraylake no disponible ({e_al}). Usando gs://ecmwf-open-data (0.1°)...', flush=True)
+        from obstore import get as obs_get, get_range as obs_range
+        from obstore.store import GCSStore
+
+        store    = GCSStore(bucket='ecmwf-open-data')
+        ahora    = datetime.now(timezone.utc)
+        steps_h  = list(range(0, 145, 3)) + list(range(150, 361, 6))
+        pref_run = None
+        init_iso = None
+        for delta_h in [6, 12, 18, 24, 30]:
+            t_ev   = ahora - timedelta(hours=delta_h)
+            c_str  = '12' if t_ev.hour >= 12 else '00'
+            p_cand = f'{t_ev:%Y%m%d}/{c_str}z/ifs/0p1/oper/{t_ev:%Y%m%d}{c_str}0000'
+            try:
+                obs_get(store, f'{p_cand}-360h-oper-fc-sfc.index')
+                pref_run = p_cand
+                init_iso = f'{t_ev:%Y-%m-%d}T{c_str}:00:00'
+                break
+            except Exception:
+                continue
+
+        if pref_run is None:
+            raise RuntimeError('No se encontró corrida completa de 360h en gs://ecmwf-open-data.')
+
+        init_str  = init_iso
+        init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
+        print(f'[{model_id}] Corrida activa seleccionada (GCS Open Data 0.1°): {init_str} UTC', flush=True)
+
+        def leer_paso_hres(h):
+            p_step  = f'{pref_run}-{h}h-oper-fc-sfc'
+            idx_txt = bytes(obs_get(store, f'{p_step}.index').bytes()).decode()
+            meta    = {d['param']: (d['_offset'], d['_length']) for l in idx_txt.splitlines() if l.strip() for d in [loads(l)] if d.get('param') in req_vars}
+            out_h   = {}
+            for v in req_vars:
+                if v in meta:
+                    off, tam = meta[v]
+                    buf      = bytes(obs_range(store, f'{p_step}.grib2', start=off, end=off + tam))
+                    out_h[v] = parse_grib_array(buf, 0).reshape((1801, 3600))[735:951, 950:1201][::-1, :].astype(float32)
+                else:
+                    out_h[v] = zeros((216, 251), dtype=float32)
+            return out_h
+
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            lista_pasos = list(pool.map(leer_paso_hres, steps_h))
+
+        lats_asc = arange(lat_min, lat_max + 0.01, 0.1, dtype=float32)[:216]
+        lons_360 = (arange(lon_min, lon_max + 0.01, 0.1, dtype=float32)[:251] + 360.0).astype(float32)
+        leads_td = array([timedelta64(h, 'h') for h in steps_h[1:]], dtype='timedelta64[ns]')
+        step_h   = array(steps_h, dtype=float)
+        raw_map  = {v: array([p[v] for p in lista_pasos], dtype=float32) for v in req_vars}
+
+    diff_h = diff(step_h)
+    t2m_k  = raw_map['2t'][1:]
+    u10    = raw_map['10u'][1:]
+    v10    = raw_map['10v'][1:]
+    w10    = hypot(u10, v10).astype(float32)
+    u100   = raw_map['100u'][1:]
+    v100   = raw_map['100v'][1:]
+    w100   = hypot(u100, v100).astype(float32)
+
+    tp_diff  = clip(diff(raw_map['tp'], axis=0), 0.0, None)
     ppt_rate = (tp_diff / diff_h[:, None, None]).astype(float32)
 
-    ssrd_raw  = sub['ssrd'].values
-    ssrd_diff = clip(diff(ssrd_raw, axis=0), 0.0, None)
+    ssrd_diff = clip(diff(raw_map['ssrd'], axis=0), 0.0, None)
     ssrd_rate = (ssrd_diff / diff_h[:, None, None]).astype(float32)
 
-    lcc = clip(sub['lcc'].values[1:], 0.0, 1.0)
-    mcc = clip(sub['mcc'].values[1:], 0.0, 1.0)
-    hcc = clip(sub['hcc'].values[1:], 0.0, 1.0)
+    lcc = clip(raw_map['lcc'][1:], 0.0, 1.0)
+    mcc = clip(raw_map['mcc'][1:], 0.0, 1.0)
+    hcc = clip(raw_map['hcc'][1:], 0.0, 1.0)
     tcc = (1.0 - (1.0 - lcc) * (1.0 - mcc) * (1.0 - hcc)).astype(float32)
 
     campos = {
