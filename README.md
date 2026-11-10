@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0F2A44.svg)](LICENSE)
 
-My-4Cast crops 11 global forecast systems (AI, physical and satellite-based) to the Colombian domain, condenses ensembles to P10/P50/P90, stores them as Zarr and publishes two products:
+My-4Cast crops 12 global forecast systems (AI, physical and satellite-based) to the Colombian domain, condenses ensembles to P10/P50/P90, stores them as Zarr and publishes two products:
 
 - **[weather.dnieves.stream](https://weather.dnieves.stream)**: an interactive map with 360 hourly frames per variable, wind vectors, 45 monitoring points and 15-day meteograms.
 - **[sounding.dnieves.stream](https://sounding.dnieves.stream/api/health)**: an API that returns the full time series for any point in Colombia.
@@ -34,6 +34,7 @@ My-4Cast crops 11 global forecast systems (AI, physical and satellite-based) to 
 | ID | System | Provider | Type | Grid | Step | Horizon |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `wn3` | WeatherNext 3 | Google DeepMind | AI ensemble (64 members) | 0.10° (~10 km) | 1 h | 360 h |
+| `ecmwf_ifs_hres` | IFS HRES (open data) | ECMWF | Physical deterministic | 0.10° (~10 km) | 3 h → 6 h | 360 h |
 | `ecmwf_ifs` | IFS ENS (open data) | ECMWF | Physical ensemble (51 members) | 0.25° | 3 h → 6 h | 360 h |
 | `ecmwf_aifs_ens` | AIFS ENS | ECMWF | AI ensemble (51 members) | 0.25° | 6 h | 360 h |
 | `ecmwf_aifs_single` | AIFS Single | ECMWF | AI deterministic | 0.25° | 6 h | 360 h |
@@ -118,7 +119,7 @@ uvicorn src.api_sounding:app --port 8000      # start the sounding API
 
 | Path | What it holds |
 | :--- | :--- |
-| `src/modelos.py` | Catalog of the 11 sources: IDs, paths, variables |
+| `src/modelos.py` | Catalog of the 12 sources: IDs, paths, variables |
 | `src/paletas.py` | Color scales and breaks for every variable |
 | `src/descarga.py` | Atomic append of new cycles to the Zarr cube |
 | `src/animacion.py` | Map rendering (Cartopy) and MP4 encoding (FFmpeg) |
@@ -134,7 +135,12 @@ uvicorn src.api_sounding:app --port 8000      # start the sounding API
 
 ## 6. Data terms and acknowledgments
 
-Forecast data remain subject to each provider's terms: Google DeepMind (WeatherNext 3, GraphCast), ECMWF (IFS, AIFS open data), NOAA/NCEP (GFS and the NOAA machine-learning model runs), DWD (ICON open data), UC Santa Barbara Climate Hazards Center (CHIRPS-GEFS), Microsoft Research (Aurora), NVIDIA (FourCastNet) and Huawei Cloud (Pangu-Weather). Check each provider's terms before reusing the outputs.
+Forecast data remain subject to each provider's licenses and terms:
+- **Google DeepMind & Google Cloud**: WeatherNext 3 experimental forecasts and GraphCast via [Google Cloud Public Datasets](https://cloud.google.com/solutions/datasets). WeatherNext 3 is provided under the [Google DeepMind Real-Time Weather Forecasting Experimental Data Terms of Use](https://storage.googleapis.com/weathernext-public/terms-of-use.pdf).
+- **ECMWF**: IFS HRES, IFS ENS, AIFS ENS and AIFS Single are provided under the [ECMWF Open Data Policy](https://www.ecmwf.int/en/forecasts/datasets/open-data) ([CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)), retrieved directly from ECMWF Open Data on Google Cloud Storage (`gs://ecmwf-open-data`).
+- **NOAA / NCEP**: GFS, NOAA MLWP AI models (Aurora, FourCastNet v2, Pangu-Weather) and GraphCast GFS under US Government public domain dedication (CC0).
+- **Deutscher Wetterdienst (DWD)**: ICON Global under DWD Open Data (GeoNutzV).
+- **UC Santa Barbara Climate Hazards Center (CHC)**: CHIRPS-GEFS v3 under CHC Open Data.
 
 Built with [Xarray](https://docs.xarray.dev/), [Zarr](https://zarr.readthedocs.io/), [Dask](https://www.dask.org/), [Cartopy](https://scitools.org.uk/cartopy/), [Matplotlib](https://matplotlib.org/), [FastAPI](https://fastapi.tiangolo.com/), [Leaflet](https://leafletjs.com/) and [Chart.js](https://www.chartjs.org/).
 
