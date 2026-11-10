@@ -319,7 +319,7 @@ def procesar_ecmwf_ifs_hres(model_id, cfg):
         from obstore import get as obs_get, get_range as obs_range
         from obstore.store import GCSStore
 
-        store    = GCSStore(bucket='ecmwf-open-data')
+        store    = GCSStore(bucket='ecmwf-open-data', skip_signature=True)
         ahora    = datetime.now(timezone.utc)
         steps_h  = list(range(0, 145, 3)) + list(range(150, 361, 6))
         pref_run = None
