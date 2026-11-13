@@ -497,15 +497,15 @@ def exportar_modelo_web(model_id, cfg):
         wdir = round((180 + rad2deg(arctan2(u, v))) % 360, 0).astype(int).tolist()
 
         rad_p50   = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values.astype(float) / 3600.0, nan=0.0), 0).astype(int).tolist()
-        cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist()
+        cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist() if 'total_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
         cldl_p50  = round(nan_to_num(pt['low_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'low_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
         cldm_p50  = round(nan_to_num(pt['medium_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'medium_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
         cldh_p50  = round(nan_to_num(pt['high_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'high_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
         imerg_p50 = round(nan_to_num(pt['imerg_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist() if 'imerg_tp_1hr_p50' in pt else ppt_p50
         exptp_p50 = round(nan_to_num(pt['experimental_tp_1hr_p50'].values.astype(float) * 1000.0, nan=0.0), 2).tolist() if 'experimental_tp_1hr_p50' in pt else ppt_p50
-        w100_p50  = round(nan_to_num(pt['wind_speed_100m_p50'].values.astype(float), nan=2.0), 1).tolist()
-        u100      = nan_to_num(pt['u_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
-        v100      = nan_to_num(pt['v_component_of_wind_100m_p50'].values.astype(float), nan=0.0)
+        w100_p50  = round(nan_to_num(pt['wind_speed_100m_p50'].values.astype(float), nan=2.0), 1).tolist() if 'wind_speed_100m_p50' in pt else wspd_p50
+        u100      = nan_to_num(pt['u_component_of_wind_100m_p50'].values.astype(float), nan=0.0) if 'u_component_of_wind_100m_p50' in pt else u
+        v100      = nan_to_num(pt['v_component_of_wind_100m_p50'].values.astype(float), nan=0.0) if 'v_component_of_wind_100m_p50' in pt else v
         wdir100   = round((180 + rad2deg(arctan2(u100, v100))) % 360, 0).astype(int).tolist()
 
         omega   = deg2rad(15.0 * ((utc_hour + info['lon'] / 15.0) % 24 - 12.0))
@@ -549,8 +549,8 @@ def exportar_modelo_web(model_id, cfg):
         'lons': round(latest.lon_0p1.values[::salto_vec].astype(float) - 360.0, 2).tolist(),
         'u10': round(nan_to_num(latest['u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
         'v10': round(nan_to_num(latest['v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
-        'u100': round(nan_to_num(latest['u_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
-        'v100': round(nan_to_num(latest['v_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+        'u100': round(nan_to_num(latest['u_component_of_wind_100m_p50' if 'u_component_of_wind_100m_p50' in latest else 'u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
+        'v100': round(nan_to_num(latest['v_component_of_wind_100m_p50' if 'v_component_of_wind_100m_p50' in latest else 'v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
     }
     with open(ruta_viento, 'w', encoding='utf-8') as fv:
         dump(vec_data, fv, separators=(',', ':'))
