@@ -20,6 +20,7 @@ from time import sleep
 from struct import unpack
 from json import dump, loads
 from h5py import File
+from requests import Session
 from bz2 import decompress
 from fsspec import filesystem
 from scipy.spatial import cKDTree
@@ -772,22 +773,25 @@ def procesar_xweather(model_id, cfg):
     return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
 def procesar_ideam_wrf(model_id, cfg):
+    sesion = Session()
     def fetch_range(url, start, length):
-        for intento in range(4):
+        for intento in range(5):
             try:
-                with urlopen(Request(url, headers={'Range': f'bytes={start}-{start + length - 1}'}), timeout=25) as r:
-                    return r.read()
+                r = sesion.get(url, headers={'Range': f'bytes={start}-{start + length - 1}'}, timeout=30)
+                r.raise_for_status()
+                return r.content
             except Exception:
-                if intento == 3:
+                if intento == 4:
                     raise
-                sleep(2 * (intento + 1))
+                sleep(3 * (intento + 1))
 
     candidatos = []
     for ciclo in ('00', '12'):
         url = f'https://bart.ideam.gov.co/wrfideam/new_modelo/WRF{ciclo}COLOMBIA/netcdf/Colombia10kmX10km{ciclo}Z.nc'
         try:
-            with urlopen(Request(url, method='HEAD'), timeout=20) as rh:
-                candidatos.append((parsedate_to_datetime(rh.getheader('Last-Modified')), ciclo, url))
+            rh = sesion.head(url, timeout=20)
+            rh.raise_for_status()
+            candidatos.append((parsedate_to_datetime(rh.headers['Last-Modified']), ciclo, url))
         except Exception:
             continue
     if not candidatos:
@@ -892,14 +896,15 @@ def procesar_ideam_wrf(model_id, cfg):
     v10_all  = zeros(shape_o, dtype=float32)
     rad_all  = zeros(shape_o, dtype=float32)
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for t, r_ac, t2, u10, v10, sw in pool.map(leer_paso, range(numrecs)):
-            rain_all[t] = r_ac
-            if t > 0:
-                t2m_all[t - 1] = t2
-                u10_all[t - 1] = u10
-                v10_all[t - 1] = v10
-                rad_all[t - 1] = sw
+    for t in range(numrecs):
+        _, r_ac, t2, u10, v10, sw = leer_paso(t)
+        rain_all[t] = r_ac
+        if t > 0:
+            t2m_all[t - 1] = t2
+            u10_all[t - 1] = u10
+            v10_all[t - 1] = v10
+            rad_all[t - 1] = sw
+        sleep(0.08)
 
     ppt_all = clip(diff(rain_all, axis=0), 0.0, None).astype(float32) / 1000.0
     w10_all = hypot(u10_all, v10_all).astype(float32)
