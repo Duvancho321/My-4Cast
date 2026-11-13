@@ -437,6 +437,7 @@ def exportar_modelo_web(model_id, cfg):
     valid_hl   = [str(init_hl_raw + timedelta64(h, 'h'))[:16] for h in lead_horas]
     n_frames   = len(lead_horas)
 
+    es_ens = 'ensamble' in cfg.get('tipo', '').lower()
     resultado = {
         'model_id': model_id,
         'modelo': cfg['nombre'],
@@ -444,6 +445,7 @@ def exportar_modelo_web(model_id, cfg):
         'etiqueta_fuente': cfg['etiqueta_fuente'],
         'carpeta_drive': cfg['carpeta'],
         'tipo': cfg['tipo'],
+        'ensamble': es_ens,
         'almacenamiento': cfg['almacenamiento'],
         'resolucion': cfg['resolucion'],
         'paso_h': cfg['paso_h'],
@@ -515,48 +517,52 @@ def exportar_modelo_web(model_id, cfg):
 
         # PPT es tasa (mm/h) en pasos sub-diarios; el acumulado usa la duración real de cada intervalo (GFS, IFS y HRES cambian de paso).
         paso_f = diff([0] + lead_horas) if cfg['paso_h'] < 24 else 1.0
-        resultado['estaciones'][k] = {
+        est_doc = {
             'info': info,
-            'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90},
-            'precipitacion': {
-                'p10': ppt_p10,
-                'p50': ppt_p50,
-                'p90': ppt_p90,
-                'acumulada_p10': round(cumsum(array(ppt_p10) * paso_f), 2).tolist(),
-                'acumulada': round(cumsum(array(ppt_p50) * paso_f), 2).tolist(),
-                'acumulada_p90': round(cumsum(array(ppt_p90) * paso_f), 2).tolist()
-            },
-            'precipitacion_imerg': {'p50': imerg_p50},
-            'precipitacion_exp': {'p50': exptp_p50},
-            'viento': {'p10': wspd_p10, 'p50': wspd_p50, 'p90': wspd_p90, 'dir': wdir},
-            'viento_100m': {'p50': w100_p50, 'dir': wdir100},
-            'radiacion_solar': {'p50': rad_p50, 'teorica': rad_toa},
-            'nubosidad': {'p50': cld_p50},
-            'nubosidad_baja': {'p50': cldl_p50},
-            'nubosidad_media': {'p50': cldm_p50},
-            'nubosidad_alta': {'p50': cldh_p50}
+            'temperatura': {'p10': t2m_p10, 'p50': t2m_p50, 'p90': t2m_p90} if es_ens else {'p50': t2m_p50},
+            'viento': {'p10': wspd_p10, 'p50': wspd_p50, 'p90': wspd_p90, 'dir': wdir} if es_ens else {'p50': wspd_p50, 'dir': wdir},
         }
+        if 'precipitacion' in cfg['variables']:
+            est_doc['precipitacion'] = {'p10': ppt_p10, 'p50': ppt_p50, 'p90': ppt_p90} if es_ens else {'p50': ppt_p50}
+        if 'imerg_tp_1hr_p50' in latest:
+            est_doc['precipitacion_imerg'] = {'p50': imerg_p50}
+        if 'experimental_tp_1hr_p50' in latest:
+            est_doc['precipitacion_exp'] = {'p50': exptp_p50}
+        if 'wind_speed_100m_p50' in latest:
+            est_doc['viento_100m'] = {'p50': w100_p50, 'dir': wdir100}
+        if 'surface_solar_radiation_downwards_1hr_p50' in latest:
+            est_doc['radiacion_solar'] = {'p50': rad_p50, 'teorica': rad_toa}
+        if 'total_cloud_cover_p50' in latest:
+            est_doc['nubosidad'] = {'p50': cld_p50}
+        if 'low_cloud_cover_p50' in latest:
+            est_doc['nubosidad_baja'] = {'p50': cldl_p50}
+        if 'medium_cloud_cover_p50' in latest:
+            est_doc['nubosidad_media'] = {'p50': cldm_p50}
+        if 'high_cloud_cover_p50' in latest:
+            est_doc['nubosidad_alta'] = {'p50': cldh_p50}
+        resultado['estaciones'][k] = est_doc
 
     prev_init = load(open(ruta_json, encoding='utf-8')).get('init_utc') if exists(ruta_json) else None
     with open(ruta_json, 'w', encoding='utf-8') as f:
         dump(resultado, f, ensure_ascii=False, separators=(',', ':'))
     print(f'[{model_id.upper()}] ✓ JSON guardado en: {ruta_json}', flush=True)
 
-    #%% EXPORTACIÓN DE MALLA VECTORIAL DE VIENTO (10M Y 100M)
+    #%% EXPORTACIÓN DE MALLA VECTORIAL DE VIENTO (PASOS DE 0.5 M/S)
     vec_data = {
         'init_utc': init_utc_str,
+        'scale': 0.5,
         'lats': round(latest.lat_0p1.values[::salto_vec].astype(float), 2).tolist(),
         'lons': round(latest.lon_0p1.values[::salto_vec].astype(float) - 360.0, 2).tolist(),
-        'u10': round(nan_to_num(latest['u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
-        'v10': round(nan_to_num(latest['v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
+        'u10': round(nan_to_num(latest['u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist(),
+        'v10': round(nan_to_num(latest['v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist(),
     }
     if 'u_component_of_wind_100m_p50' in latest and 'v_component_of_wind_100m_p50' in latest:
-        vec_data['u100'] = round(nan_to_num(latest['u_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
-        vec_data['v100'] = round(nan_to_num(latest['v_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+        vec_data['u100'] = round(nan_to_num(latest['u_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist()
+        vec_data['v100'] = round(nan_to_num(latest['v_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist()
     for lev in ('850', '500'):
         if f'u_component_of_wind_{lev}hpa_p50' in latest and f'v_component_of_wind_{lev}hpa_p50' in latest:
-            vec_data[f'u{lev}'] = round(nan_to_num(latest[f'u_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
-            vec_data[f'v{lev}'] = round(nan_to_num(latest[f'v_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+            vec_data[f'u{lev}'] = round(nan_to_num(latest[f'u_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist()
+            vec_data[f'v{lev}'] = round(nan_to_num(latest[f'v_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0) * 2.0, 0).astype(int).tolist()
     with open(ruta_viento, 'w', encoding='utf-8') as fv:
         dump(vec_data, fv, separators=(',', ':'))
 
@@ -607,6 +613,7 @@ def exportar_modelo_web(model_id, cfg):
         'etiqueta_corta': cfg['etiqueta_corta'],
         'etiqueta_fuente': cfg['etiqueta_fuente'],
         'tipo': cfg['tipo'],
+        'ensamble': es_ens,
         'almacenamiento': cfg['almacenamiento'],
         'resolucion': cfg['resolucion'],
         'paso_h': cfg['paso_h'],

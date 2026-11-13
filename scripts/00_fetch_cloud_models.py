@@ -188,6 +188,45 @@ for m_id, info_m in manifest.get('models', {}).items():
     print(f'  [✓ {m_id}] Actualizado en {ruta_zarr} (efímero, corrida única).', flush=True)
     sleep(1.0)
 
+if token_gh and (filtro in ('all', 'xweather') or 'xweather' in filtro.split(',')):
+    r_xw = get(f'https://api.github.com/repos/{repo_owner}/{repo_name}/actions/artifacts?name=crop-xweather&per_page=1', headers=headers, timeout=20)
+    if r_xw.status_code == 200 and r_xw.json().get('artifacts'):
+        art = r_xw.json()['artifacts'][0]
+        ruta_zarr    = f'{dir_models}/xweather.zarr'
+        ruta_art_id  = f'{ruta_zarr}/.artifact_id'
+        art_id_loc   = open(ruta_art_id).read().strip() if exists(ruta_art_id) else ''
+        if art_id_loc == str(art['id']):
+            print(f'  - [xweather] Artifact #{art["id"]} ya activo en staging efímero. Omitiendo.', flush=True)
+        else:
+            ruta_art_zip = f'{dir_models}/art_xweather.zip'
+            ruta_ext_dir = f'{dir_models}/ext_xweather'
+            print(f'  - [xweather] Descargando artifact privado {art["name"]} ({art["size_in_bytes"]/1e6:.2f} MB, máx {max_mb_seg} MB/s)...', flush=True)
+            with get(art['archive_download_url'], headers=headers, stream=True, timeout=90) as resp_a:
+                resp_a.raise_for_status()
+                with open(ruta_art_zip, 'wb') as f_out:
+                    for chunk in resp_a.iter_content(chunk_size=tam_bloque):
+                        t_ini = monotonic()
+                        if not chunk:
+                            continue
+                        f_out.write(chunk)
+                        t_esp = (len(chunk) / (max_mb_seg * 1024 * 1024)) - (monotonic() - t_ini)
+                        if t_esp > 0:
+                            sleep(t_esp)
+            rmtree(ruta_ext_dir, ignore_errors=True)
+            with ZipFile(ruta_art_zip, 'r') as zf:
+                zf.extractall(ruta_ext_dir)
+            remove(ruta_art_zip)
+            inner_zip = f'{ruta_ext_dir}/colombia_xweather.zip'
+            if exists(inner_zip):
+                rmtree(ruta_zarr, ignore_errors=True)
+                with ZipFile(inner_zip, 'r') as zf_in:
+                    zf_in.extractall(ruta_zarr)
+                with open(ruta_art_id, 'w') as fa:
+                    fa.write(str(art['id']))
+                actualizados += 1
+                print(f'  [✓ xweather] Actualizado en {ruta_zarr} desde artifact privado.', flush=True)
+            rmtree(ruta_ext_dir, ignore_errors=True)
+
 if actualizados == 0:
     print('Todos los modelos efímeros están al día.', flush=True)
     exit(10)

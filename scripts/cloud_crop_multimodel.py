@@ -34,7 +34,7 @@ from icechunk import Repository, s3_storage
 from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
-from numpy import arange, argmax, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, frombuffer, hypot, isnan, linspace, meshgrid, nan, nan_to_num, nanpercentile, sin, take_along_axis, timedelta64, where, zeros
+from numpy import arange, argmax, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, frombuffer, full, hypot, isnan, linspace, meshgrid, nan, nan_to_num, nanpercentile, sin, take_along_axis, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
 lat_min = -5.0
@@ -734,30 +734,44 @@ def procesar_xweather(model_id, cfg):
     init_iso = init_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     shape_c  = (n_pasos, len(lats_c), len(lons_c))
-    raw_t2m  = zeros(shape_c, dtype=float32)
-    raw_ppt  = zeros(shape_c, dtype=float32)
-    raw_u10  = zeros(shape_c, dtype=float32)
-    raw_v10  = zeros(shape_c, dtype=float32)
-    raw_u80  = zeros(shape_c, dtype=float32)
-    raw_v80  = zeros(shape_c, dtype=float32)
-    raw_rad  = zeros(shape_c, dtype=float32)
-    raw_cld  = zeros(shape_c, dtype=float32)
+    raw_t2m  = full(shape_c, nan, dtype=float32)
+    raw_ppt  = full(shape_c, nan, dtype=float32)
+    raw_u10  = full(shape_c, nan, dtype=float32)
+    raw_v10  = full(shape_c, nan, dtype=float32)
+    raw_u80  = full(shape_c, nan, dtype=float32)
+    raw_v80  = full(shape_c, nan, dtype=float32)
+    raw_rad  = full(shape_c, nan, dtype=float32)
+    raw_cld  = full(shape_c, nan, dtype=float32)
 
     for (i, j), periods in malla_raw.items():
         for k in range(n_pasos):
             p = periods[k]
-            raw_t2m[k, i, j] = (p.get('tempC') or 20.0) + 273.15
-            raw_ppt[k, i, j] = max(0.0, float(p.get('precipMM') or 0.0)) / 1000.0
-            w10 = float(p.get('windSpeedMPS') or 0.0)
-            d10 = deg2rad(float(p.get('windDirDEG') or 0.0))
-            raw_u10[k, i, j] = -w10 * sin(d10)
-            raw_v10[k, i, j] = -w10 * cos(d10)
-            w80 = float(p.get('windSpeed80mMPS') or w10)
-            d80 = deg2rad(float(p.get('windDir80mDEG') or p.get('windDirDEG') or 0.0))
-            raw_u80[k, i, j] = -w80 * sin(d80)
-            raw_v80[k, i, j] = -w80 * cos(d80)
-            raw_rad[k, i, j] = max(0.0, float(p.get('solradWM2') or 0.0)) * 3600.0
-            raw_cld[k, i, j] = clip(float(p.get('sky') or 0.0) / 100.0, 0.0, 1.0)
+            t2m_val = p.get('tempC')
+            if t2m_val is not None:
+                raw_t2m[k, i, j] = float(t2m_val) + 273.15
+            ppt_val = p.get('precipMM')
+            if ppt_val is not None:
+                raw_ppt[k, i, j] = max(0.0, float(ppt_val)) / 1000.0
+            w10_val = p.get('windSpeedMPS')
+            d10_val = p.get('windDirDEG')
+            if w10_val is not None and d10_val is not None:
+                w10 = float(w10_val)
+                d10 = deg2rad(float(d10_val))
+                raw_u10[k, i, j] = -w10 * sin(d10)
+                raw_v10[k, i, j] = -w10 * cos(d10)
+            w80_val = p.get('windSpeed80mMPS') if p.get('windSpeed80mMPS') is not None else w10_val
+            d80_val = p.get('windDir80mDEG') if p.get('windDir80mDEG') is not None else d10_val
+            if w80_val is not None and d80_val is not None:
+                w80 = float(w80_val)
+                d80 = deg2rad(float(d80_val))
+                raw_u80[k, i, j] = -w80 * sin(d80)
+                raw_v80[k, i, j] = -w80 * cos(d80)
+            rad_val = p.get('solradWM2')
+            if rad_val is not None:
+                raw_rad[k, i, j] = max(0.0, float(rad_val)) * 3600.0
+            cld_val = p.get('sky')
+            if cld_val is not None:
+                raw_cld[k, i, j] = clip(float(cld_val) / 100.0, 0.0, 1.0)
 
     coords_c = {'lead': arange(n_pasos), 'lat_0p1': lats_c, 'lon_0p1': lons_c}
     dims_c   = ('lead', 'lat_0p1', 'lon_0p1')
@@ -767,21 +781,23 @@ def procesar_xweather(model_id, cfg):
         'u80': (dims_c, raw_u80), 'v80': (dims_c, raw_v80),
         'rad': (dims_c, raw_rad), 'cld': (dims_c, raw_cld)
     }, coords=coords_c)
+    if len(malla_raw) < len(lats_c) * len(lons_c):
+        ds_c = ds_c.interpolate_na(dim='lon_0p1', method='linear').interpolate_na(dim='lat_0p1', method='linear')
 
     lats_025 = arange(lat_min, lat_max + 0.01, 0.25, dtype=float32)
     lons_025 = arange(lon_min, lon_max + 0.01, 0.25, dtype=float32)
     ds_i     = ds_c.interp(lat_0p1=lats_025, lon_0p1=lons_025, method='linear')
 
-    u10_i  = nan_to_num(ds_i['u10'].values, nan=0.0).astype(float32)
-    v10_i  = nan_to_num(ds_i['v10'].values, nan=0.0).astype(float32)
+    u10_i  = ds_i['u10'].values.astype(float32)
+    v10_i  = ds_i['v10'].values.astype(float32)
     w10_i  = hypot(u10_i, v10_i).astype(float32)
-    u80_i  = nan_to_num(ds_i['u80'].values, nan=0.0).astype(float32)
-    v80_i  = nan_to_num(ds_i['v80'].values, nan=0.0).astype(float32)
+    u80_i  = ds_i['u80'].values.astype(float32)
+    v80_i  = ds_i['v80'].values.astype(float32)
     w80_i  = hypot(u80_i, v80_i).astype(float32)
-    t2m_i  = nan_to_num(ds_i['t2m'].values, nan=293.15).astype(float32)
-    ppt_i  = nan_to_num(ds_i['ppt'].values, nan=0.0).astype(float32)
-    rad_i  = nan_to_num(ds_i['rad'].values, nan=0.0).astype(float32)
-    cld_i  = nan_to_num(ds_i['cld'].values, nan=0.0).astype(float32)
+    t2m_i  = ds_i['t2m'].values.astype(float32)
+    ppt_i  = ds_i['ppt'].values.astype(float32)
+    rad_i  = ds_i['rad'].values.astype(float32)
+    cld_i  = ds_i['cld'].values.astype(float32)
 
     leads_td = [timedelta64(k + 1, 'h') for k in range(n_pasos)]
     campos   = {

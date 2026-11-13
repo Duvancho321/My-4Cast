@@ -122,6 +122,8 @@ jobs:
           RUN_TAG="colombia-models-latest"
           mkdir -p prev_man
           gh release download "$RUN_TAG" --repo "${{ github.repository }}" -p "models_manifest.json" -D prev_man 2>/dev/null || true
+          rm -f colombia_xweather.zip manifest_xweather.json
+          gh release delete-asset "$RUN_TAG" "colombia_xweather.zip" --repo "${{ github.repository }}" -y 2>/dev/null || true
           python3 -c "
           import glob, json, datetime, os
           merged = {'updated_utc': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
@@ -133,6 +135,7 @@ jobs:
           for fn in sorted(glob.glob('manifest_*.json')):
               data = json.load(open(fn))
               merged['models'].update(data.get('models', {}))
+          merged['models'].pop('xweather', None)
           with open('models_manifest.json', 'w') as f:
               json.dump(merged, f, indent=2, ensure_ascii=False)
           print('Merged models:', list(merged['models'].keys()))

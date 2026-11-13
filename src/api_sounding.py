@@ -18,6 +18,7 @@ __changues__:
 
 from time import time
 from json import dumps
+from threading import Lock
 from xarray import open_zarr
 from asyncio import Semaphore
 from pandas import to_datetime
@@ -25,13 +26,15 @@ from functools import lru_cache
 from os.path import exists, getmtime
 from src.modelos import modelos_colombia
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from numpy import arctan2, array, cos, cumsum, deg2rad, diff, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, zeros
+from numpy import abs, arctan2, argmin, array, cos, cumsum, deg2rad, diff, isnan, maximum, nan_to_num, pi, rad2deg, round, sin, timedelta64, zeros
 
 #%% CONFIGURACIÓN DE PARÁMETROS Y CONTROL DE CONCURRENCIA
 app            = FastAPI(title='My-4Cast Sounding API', version='0.2.0')
 tiempo_inicio  = time()
 semaforo_disco = Semaphore(8)
+lock_modelos   = Lock()
 cache_modelos  = {}
 registro_ips   = {}
 stats_api      = {'total_req': 0, 'rate_limited': 0}
@@ -81,45 +84,46 @@ def obtener_modelo(model_id):
     if not exists(ruta):
         return None
     mtime = getmtime(ruta)
-    if model_id in cache_modelos and cache_modelos[model_id]['mtime'] == mtime:
+    with lock_modelos:
+        if model_id in cache_modelos and cache_modelos[model_id]['mtime'] == mtime:
+            return cache_modelos[model_id]
+
+        ds     = open_zarr(ruta)
+        latest = None
+        for idx in range(len(ds.init_time) - 1, -1, -1):
+            cand   = ds.isel(init_time=idx)
+            sample = cand['temperature_2m_p50'].isel(lat_0p1=len(cand.lat_0p1) // 2, lon_0p1=len(cand.lon_0p1) // 2).values
+            if not isnan(sample).all():
+                if model_id != 'wn3' or (not isnan(sample).any() and len(sample) == 360):
+                    latest = cand
+                    break
+        if latest is None:
+            return None
+
+        init_utc_raw = latest.init_time.values
+        lead_horas   = [int(td / timedelta64(1, 'h')) for td in latest.lead_time.values]
+        dts          = to_datetime([init_utc_raw + timedelta64(h, 'h') for h in lead_horas])
+        theta_d      = 2 * pi * (dts.day_of_year.values - 1) / 365.0
+        rc_dis       = 1.00011 + 0.034221 * cos(theta_d) + 0.00128 * sin(theta_d) + 0.000719 * cos(2 * theta_d) + 0.000077 * sin(2 * theta_d)
+        rc_dec       = 0.006918 - 0.39912 * cos(theta_d) + 0.070257 * sin(theta_d) - 0.006758 * cos(2 * theta_d) + 0.000907 * sin(2 * theta_d) - 0.002697 * cos(3 * theta_d) + 0.00148 * sin(3 * theta_d)
+        utc_hour     = dts.hour.values + dts.minute.values / 60.0
+
+        cache_modelos[model_id] = {
+            'cand': latest,
+            'mtime': mtime,
+            'cfg': cfg,
+            'lead_horas': lead_horas,
+            'n_frames': len(lead_horas),
+            'rc_dis': rc_dis,
+            'rc_dec': rc_dec,
+            'utc_hour': utc_hour,
+            'paso_f': diff([0] + lead_horas) if cfg['paso_h'] < 24 else 1.0
+        }
         return cache_modelos[model_id]
 
-    ds     = open_zarr(ruta)
-    latest = None
-    for idx in range(len(ds.init_time) - 1, -1, -1):
-        cand   = ds.isel(init_time=idx)
-        sample = cand['temperature_2m_p50'].isel(lat_0p1=len(cand.lat_0p1) // 2, lon_0p1=len(cand.lon_0p1) // 2).values
-        if not isnan(sample).all():
-            if model_id != 'wn3' or (not isnan(sample).any() and len(sample) == 360):
-                latest = cand
-                break
-    if latest is None:
-        return None
-
-    init_utc_raw = latest.init_time.values
-    lead_horas   = [int(td / timedelta64(1, 'h')) for td in latest.lead_time.values]
-    dts          = to_datetime([init_utc_raw + timedelta64(h, 'h') for h in lead_horas])
-    theta_d      = 2 * pi * (dts.day_of_year.values - 1) / 365.0
-    rc_dis       = 1.00011 + 0.034221 * cos(theta_d) + 0.00128 * sin(theta_d) + 0.000719 * cos(2 * theta_d) + 0.000077 * sin(2 * theta_d)
-    rc_dec       = 0.006918 - 0.39912 * cos(theta_d) + 0.070257 * sin(theta_d) - 0.006758 * cos(2 * theta_d) + 0.000907 * sin(2 * theta_d) - 0.002697 * cos(3 * theta_d) + 0.00148 * sin(3 * theta_d)
-    utc_hour     = dts.hour.values + dts.minute.values / 60.0
-
-    cache_modelos[model_id] = {
-        'cand': latest,
-        'mtime': mtime,
-        'cfg': cfg,
-        'lead_horas': lead_horas,
-        'n_frames': len(lead_horas),
-        'rc_dis': rc_dis,
-        'rc_dec': rc_dec,
-        'utc_hour': utc_hour,
-        'paso_f': diff([0] + lead_horas) if cfg['paso_h'] < 24 else 1.0
-    }
-    return cache_modelos[model_id]
-
 #%% EXTRACCIÓN Y SERIALIZACIÓN OPTIMIZADA CON CACHÉ LRU
-@lru_cache(maxsize=16384)
-def extraer_sondeo_json(model_id, lat_r, lon_r):
+@lru_cache(maxsize=4096)
+def extraer_sondeo_json(model_id, iy, ix, iy5, ix5):
     entry = obtener_modelo(model_id)
     if entry is None:
         return None
@@ -127,9 +131,8 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
     cand     = entry['cand']
     cfg      = entry['cfg']
     n_frames = entry['n_frames']
-    lon_t    = 360.0 + lon_r if lon_r < 0 else lon_r
-    pt       = cand.sel(lat_0p1=lat_r, lon_0p1=lon_t, method='nearest')
-    pt_05    = cand.sel(lat_0p05=lat_r, lon_0p05=lon_t, method='nearest') if 'lat_0p05' in cand.coords else pt
+    pt       = cand.isel(lat_0p1=iy, lon_0p1=ix)
+    pt_05    = cand.isel(lat_0p05=iy5, lon_0p05=ix5) if 'lat_0p05' in cand.coords else pt
     t_var    = 'station_head_temperature_2m' if ('station_head_temperature_2m_p50' in cand.data_vars and not isnan(pt_05['station_head_temperature_2m_p50'].values).all()) else 'temperature_2m'
     pt_t     = pt_05 if t_var.startswith('station_head') else pt
 
@@ -168,8 +171,8 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
     v100     = nan_to_num(pt['v_component_of_wind_100m_p50'].values.astype(float), nan=0.0) if 'v_component_of_wind_100m_p50' in pt else v
     wdir100  = round((180 + rad2deg(arctan2(u100, v100))) % 360, 0).astype(int).tolist()
 
-    omega   = deg2rad(15.0 * ((entry['utc_hour'] + lon_r / 15.0) % 24 - 12.0))
-    lat_rad = deg2rad(lat_r)
+    omega   = deg2rad(15.0 * ((entry['utc_hour'] + actual_lon / 15.0) % 24 - 12.0))
+    lat_rad = deg2rad(actual_lat)
     cos_z   = sin(lat_rad) * sin(entry['rc_dec']) + cos(lat_rad) * cos(entry['rc_dec']) * cos(omega)
     rad_toa = round(maximum(0.0, 1361.0 * entry['rc_dis'] * cos_z), 0).astype(int).tolist()
 
@@ -217,11 +220,19 @@ async def sounding(
     if model not in modelos_colombia:
         raise HTTPException(status_code=400, detail=f'Modelo {model} no reconocido')
 
-    lat_r = round(lat, 2)
-    lon_r = round(lon, 2)
+    entry = await run_in_threadpool(obtener_modelo, model)
+    if entry is None:
+        raise HTTPException(status_code=500, detail='Fallo en extracción de sondeo o modelo no disponible')
+
+    cand  = entry['cand']
+    lon_t = 360.0 + lon if lon < 0 else lon
+    iy    = int(argmin(abs(cand.lat_0p1.values - lat)))
+    ix    = int(argmin(abs(cand.lon_0p1.values - lon_t)))
+    iy5   = int(argmin(abs(cand.lat_0p05.values - lat))) if 'lat_0p05' in cand.coords else iy
+    ix5   = int(argmin(abs(cand.lon_0p05.values - lon_t))) if 'lon_0p05' in cand.coords else ix
 
     async with semaforo_disco:
-        payload = extraer_sondeo_json(model, lat_r, lon_r)
+        payload = await run_in_threadpool(extraer_sondeo_json, model, iy, ix, iy5, ix5)
 
     if payload is None:
         raise HTTPException(status_code=500, detail='Fallo en extracción de sondeo o modelo no disponible')

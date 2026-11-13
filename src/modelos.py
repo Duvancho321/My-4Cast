@@ -330,7 +330,7 @@ modelos_colombia = {
         'etiqueta_fuente': 'Xweather · Vaisala (Pronóstico calibrado)',
         'sello_mapa': 'Vaisala Xweather\nPronóstico Calibrado (15d)',
         'tipo': 'Híbrido NWP / Calibrado',
-        'resolucion': '1.5° malla / 0.25° interp.',
+        'resolucion': '≈2° (143 puntos, interp. a 0.25°)',
         'paso_h': 1,
         'horizonte_h': 360,
         'salto_quiver': 4,
