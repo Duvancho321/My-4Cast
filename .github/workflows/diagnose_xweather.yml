@@ -16,41 +16,21 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Query Xweather 360h forecast and catalog details
+      - name: List all Xweather models
         env:
           XWEATHER_CLIENT_ID: ${{ secrets.XWEATHER_CLIENT_ID }}
           XWEATHER_CLIENT_SECRET: ${{ secrets.XWEATHER_CLIENT_SECRET }}
         run: |
           python3 - << 'EOF'
-          import os, json, urllib.request, urllib.error
+          import os, json, urllib.request
 
           cid = os.environ['XWEATHER_CLIENT_ID']
           sec = os.environ['XWEATHER_CLIENT_SECRET']
-
-          def query(path):
-              sep = '&' if '?' in path else '?'
-              url = f"https://data.api.xweather.com{path}{sep}client_id={cid}&client_secret={sec}"
-              try:
-                  with urllib.request.urlopen(url, timeout=15) as r:
-                      headers = {k: v for k, v in r.headers.items() if 'cost' in k.lower() or 'remain' in k.lower()}
-                      body = json.loads(r.read().decode())
-                      return r.status, headers, body
-              except urllib.error.HTTPError as e:
-                  return e.code, {}, e.read().decode()
-
-          print("=== 1. /forecasts 360h test ===")
-          st, hdr, data = query('/forecasts/4.711,-74.072?filter=1hr&limit=360')
-          print("Status:", st, "Headers:", hdr)
-          if isinstance(data, dict) and data.get('success'):
-              periods = data['response'][0].get('periods', [])
-              print(f"Periods returned: {len(periods)}")
-              if periods:
-                  print("First:", periods[0].get('dateTimeISO'), "| Last:", periods[-1].get('dateTimeISO'))
-          else:
-              print("Response:", str(data)[:600])
-
-          print("\n=== 2. /models/catalog raw keys ===")
-          st2, hdr2, data2 = query('/models/catalog')
-          print("Status:", st2, "Headers:", hdr2)
-          print("Raw sample:", json.dumps(data2)[:1000])
+          url = f"https://data.api.xweather.com/models/catalog?client_id={cid}&client_secret={sec}"
+          with urllib.request.urlopen(url, timeout=15) as r:
+              data = json.loads(r.read().decode())
+              models = data['response'][0]['models']
+              print(f"Total models: {len(models)}")
+              for m in models:
+                  print(f" - {m.get('name')} | region={m.get('region')} | latest={m.get('latestRuntime')} | range={m.get('forecastRange')}")
           EOF
