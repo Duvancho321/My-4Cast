@@ -25,7 +25,7 @@ from src.modelos import modelos_colombia
 from matplotlib.pyplot import close, figure
 from src.paletas import CMAP_PPT, NORM_PPT
 from cartopy.feature import BORDERS, NaturalEarthFeature
-from src.animacion import cuadro_desde_figura, escribir_mp4
+from src.animacion import agregar_logo, cuadro_desde_figura, escribir_mp4
 
 #%% FUNCIÓN DE RENDERIZADO POR MODELO
 def animar_modelo_ppt(model_id, cfg):
@@ -106,6 +106,7 @@ def animar_modelo_ppt(model_id, cfg):
     fig.canvas.draw()
     pos_ax = ax.get_position()
     cax.set_position([pos_ax.x1 + 0.02, pos_ax.y0, 0.025, pos_ax.height])
+    agregar_logo(fig, pos_ax)
 
     def iterar_cuadros():
         for idx in range(n_pasos):

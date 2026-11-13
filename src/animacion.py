@@ -12,7 +12,11 @@ __changues__:
 """
 
 from numpy import asarray
+from os.path import exists
 from imageio import get_writer
+from matplotlib.image import imread
+
+RUTA_LOGO = '/home/dnieves/Documentos/My-4Cast-Web/icons/favicon-192.png'
 
 #%% FUNCIONES
 cuadro_desde_figura = lambda fig: (fig.canvas.draw(), asarray(fig.canvas.buffer_rgba())[:, :, :3].copy())[1]
@@ -21,3 +25,12 @@ cuadro_desde_figura = lambda fig: (fig.canvas.draw(), asarray(fig.canvas.buffer_
 def escribir_mp4(cuadros, ruta, fps=3):
     with get_writer(ruta, fps=fps, quality=8, macro_block_size=16) as escritor:
         [escritor.append_data(cuadro) for cuadro in cuadros]
+
+
+def agregar_logo(fig, pos_ax, alto=0.068):
+    if not exists(RUTA_LOGO):
+        return
+    ancho   = alto * (fig.get_figheight() / fig.get_figwidth())
+    ax_logo = fig.add_axes([pos_ax.x1 + 0.008, pos_ax.y1 + 0.008, ancho, alto])
+    ax_logo.imshow(imread(RUTA_LOGO))
+    ax_logo.axis('off')
