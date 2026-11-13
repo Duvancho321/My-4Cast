@@ -1,0 +1,63 @@
+name: Diagnose Xweather API Capabilities
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Query Xweather catalog and forecast for Bogota
+        env:
+          XWEATHER_CLIENT_ID: ${{ secrets.XWEATHER_CLIENT_ID }}
+          XWEATHER_CLIENT_SECRET: ${{ secrets.XWEATHER_CLIENT_SECRET }}
+        run: |
+          python3 - << 'EOF'
+          import os, json, urllib.request, urllib.error
+
+          cid = os.environ['XWEATHER_CLIENT_ID']
+          sec = os.environ['XWEATHER_CLIENT_SECRET']
+
+          def query(path):
+              sep = '&' if '?' in path else '?'
+              url = f"https://data.api.xweather.com{path}{sep}client_id={cid}&client_secret={sec}"
+              try:
+                  with urllib.request.urlopen(url, timeout=15) as r:
+                      headers = {k: v for k, v in r.headers.items() if 'cost' in k.lower() or 'rate' in k.lower() or 'limit' in k.lower() or 'remain' in k.lower()}
+                      body = json.loads(r.read().decode())
+                      return r.status, headers, body
+              except urllib.error.HTTPError as e:
+                  return e.code, {}, e.read().decode()
+
+          print("=== 1. /models/catalog ===")
+          st, hdr, data = query('/models/catalog')
+          print("Status:", st, "Headers:", hdr)
+          if isinstance(data, dict) and data.get('success'):
+              resp = data.get('response', [])
+              print(f"Total models in catalog: {len(resp)}")
+              for m in resp[:30]:
+                  print(" -", m.get('id'), "|", m.get('name'), "| datasets:", list(m.get('datasets', {}).keys()) if isinstance(m.get('datasets'), dict) else m.get('datasets'))
+          else:
+              print("Response:", str(data)[:600])
+
+          print("\n=== 2. /forecasts/4.711,-74.072?filter=1hr&limit=5 ===")
+          st2, hdr2, data2 = query('/forecasts/4.711,-74.072?filter=1hr&limit=5')
+          print("Status:", st2, "Headers:", hdr2)
+          if isinstance(data2, dict) and data2.get('success'):
+              periods = data2['response'][0].get('periods', [])
+              print(f"Periods returned: {len(periods)}")
+              if periods:
+                  print("Keys in period[0]:", sorted(periods[0].keys()))
+                  print("Sample period[0]:", json.dumps(periods[0], indent=2)[:800])
+          else:
+              print("Response:", str(data2)[:600])
+          EOF
