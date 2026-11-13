@@ -34,6 +34,7 @@ jobs:
           - fourcastnet_gfs
           - pangu_gfs
           - xweather
+          - ideam_wrf
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

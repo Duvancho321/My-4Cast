@@ -340,5 +340,27 @@ modelos_colombia = {
         'dir_anim': f'{DIR_BASE}/animations/VAISALA_XWEATHER',
         'dir_fig': f'{DIR_BASE}/figures/VAISALA_XWEATHER',
         'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
+    },
+    'ideam_wrf': {
+        'id': 'ideam_wrf',
+        'carpeta': 'IDEAM_WRF',
+        'nombre': 'IDEAM WRF Colombia 10 km',
+        'institucion': 'IDEAM Colombia',
+        'familia': 'fisico',
+        'licencia': 'Datos abiertos IDEAM (uso no comercial / investigación)',
+        'etiqueta_corta': 'IDEAM WRF · Físico Regional (10km)',
+        'etiqueta_fuente': 'IDEAM WRF · Mesoescala Colombia (0.1°)',
+        'sello_mapa': 'IDEAM WRF Colombia\nMesoescala Regional (10 km)',
+        'tipo': 'Físico Regional',
+        'resolucion': '0.1° (~10 km)',
+        'paso_h': 1,
+        'horizonte_h': 192,
+        'salto_quiver': 8,
+        'salto_web': 3,
+        'almacenamiento': 'efimero_visualizacion',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/ideam_wrf.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/IDEAM_WRF',
+        'dir_fig': f'{DIR_BASE}/figures/IDEAM_WRF',
+        'variables': ['precipitacion', 'temperatura', 'viento', 'radiacion']
     }
 }

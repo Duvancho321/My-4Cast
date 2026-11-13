@@ -17,6 +17,7 @@ __changues__:
 from os import getenv
 from sys import argv
 from time import sleep
+from struct import unpack
 from json import dump, loads
 from h5py import File
 from bz2 import decompress
@@ -28,10 +29,11 @@ from gribberish import parse_grib_array
 from rasterio.windows import from_bounds
 from urllib.request import Request, urlopen
 from icechunk import Repository, s3_storage
+from email.utils import parsedate_to_datetime
 from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
-from numpy import arange, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, hypot, isnan, linspace, meshgrid, nan_to_num, nanpercentile, sin, timedelta64, where, zeros
+from numpy import arange, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, frombuffer, hypot, isnan, linspace, meshgrid, nan, nan_to_num, nanpercentile, sin, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
 lat_min = -5.0
@@ -164,6 +166,16 @@ catalogo_modelos = {
         'paso_h': 1,
         'horizonte_h': 360,
         'xweather_api': True,
+        'ensamble': False
+    },
+    'ideam_wrf': {
+        'nombre': 'IDEAM WRF Colombia 10 km',
+        'organizacion': 'IDEAM Colombia',
+        'tipo': 'Físico Regional',
+        'resolucion': '0.1° (~10 km)',
+        'paso_h': 1,
+        'horizonte_h': 192,
+        'ideam_wrf': True,
         'ensamble': False
     }
 }
@@ -759,6 +771,157 @@ def procesar_xweather(model_id, cfg):
     zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_025, lons_025 + 360.0, campos, cfg)
     return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
+def procesar_ideam_wrf(model_id, cfg):
+    def fetch_range(url, start, length):
+        for intento in range(4):
+            try:
+                with urlopen(Request(url, headers={'Range': f'bytes={start}-{start + length - 1}'}), timeout=25) as r:
+                    return r.read()
+            except Exception:
+                if intento == 3:
+                    raise
+                sleep(2 * (intento + 1))
+
+    candidatos = []
+    for ciclo in ('00', '12'):
+        url = f'https://bart.ideam.gov.co/wrfideam/new_modelo/WRF{ciclo}COLOMBIA/netcdf/Colombia10kmX10km{ciclo}Z.nc'
+        try:
+            with urlopen(Request(url, method='HEAD'), timeout=20) as rh:
+                candidatos.append((parsedate_to_datetime(rh.getheader('Last-Modified')), ciclo, url))
+        except Exception:
+            continue
+    if not candidatos:
+        raise RuntimeError('No se pudo consultar cabecera HTTP en bart.ideam.gov.co.')
+    _, ciclo_sel, url = max(candidatos, key=lambda x: x[0])
+
+    hdr     = fetch_range(url, 0, 65536)
+    ver     = hdr[3]
+    numrecs = unpack('>I', hdr[4:8])[0]
+    pos     = 8
+    rd_u32  = lambda b, p: (unpack('>I', b[p:p + 4])[0], p + 4)
+    def rd_str(b, p):
+        n, p = rd_u32(b, p)
+        return b[p:p + n].decode('utf-8', 'replace'), p + n + ((4 - (n % 4)) % 4)
+    def skip_attrs(b, p):
+        tag, p = rd_u32(b, p)
+        if tag == 0:
+            return rd_u32(b, p)[1]
+        cnt, p = rd_u32(b, p)
+        for _ in range(cnt):
+            _, p       = rd_str(b, p)
+            nct, p     = rd_u32(b, p)
+            nelems, p  = rd_u32(b, p)
+            sz         = {1: 1, 2: 1, 3: 2, 4: 4, 5: 4, 6: 8}[nct] * nelems
+            p         += sz + ((4 - (sz % 4)) % 4)
+        return p
+
+    tag, pos = rd_u32(hdr, pos)
+    dims     = []
+    if tag == 10:
+        ndims, pos = rd_u32(hdr, pos)
+        for _ in range(ndims):
+            dn, pos = rd_str(hdr, pos)
+            dl, pos = rd_u32(hdr, pos)
+            dims.append((dn, dl))
+    else:
+        pos += 4
+    pos      = skip_attrs(hdr, pos)
+    tag, pos = rd_u32(hdr, pos)
+    nvars, pos = rd_u32(hdr, pos)
+    vm, recsize = {}, 0
+    for _ in range(nvars):
+        vn, pos = rd_str(hdr, pos)
+        nd, pos = rd_u32(hdr, pos)
+        vdims   = []
+        for _ in range(nd):
+            did, pos = rd_u32(hdr, pos)
+            vdims.append(dims[did][0])
+        pos        = skip_attrs(hdr, pos)
+        _, pos     = rd_u32(hdr, pos)
+        vsize, pos = rd_u32(hdr, pos)
+        b_fmt      = '>Q' if ver == 2 else '>I'
+        b_sz       = 8 if ver == 2 else 4
+        begin      = unpack(b_fmt, hdr[pos:pos + b_sz])[0]
+        pos       += b_sz
+        vm[vn]     = {'vsize': vsize, 'begin': begin}
+        if vdims and vdims[0] == 'Time':
+            recsize += vsize
+
+    t0_str  = fetch_range(url, vm['Times']['begin'], 20)[:19].decode()
+    init_dt = datetime.strptime(t0_str, '%Y-%m-%d_%H:%M:%S').replace(tzinfo=timezone.utc)
+    init_iso = init_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+    print(f'[{model_id}] Usando WRF{ciclo_sel} ({init_iso}, {numrecs - 1} pasos horarios)...', flush=True)
+
+    sz       = vm['XLAT']['vsize']
+    geo      = fetch_range(url, vm['XLAT']['begin'], (vm['XLONG']['begin'] + sz) - vm['XLAT']['begin'])
+    xlat     = frombuffer(geo[:sz], dtype='>f4')
+    xlon     = frombuffer(geo[vm['XLONG']['begin'] - vm['XLAT']['begin']:vm['XLONG']['begin'] - vm['XLAT']['begin'] + sz], dtype='>f4')
+    lats_01  = arange(lat_min, lat_max + 0.01, 0.1, dtype=float32)
+    lons_01  = arange(lon_min, lon_max + 0.01, 0.1, dtype=float32)
+    glon, glat = meshgrid(lons_01, lats_01)
+    dist, idx_nn = cKDTree(column_stack([xlat, xlon])).query(column_stack([glat.ravel(), glon.ravel()]), distance_upper_bound=0.18)
+    valid    = dist < 0.18
+    idx_safe = where(valid, idx_nn, 0)
+    ny_t, nx_t = len(lats_01), len(lons_01)
+    regrid   = lambda src: where(valid, src[idx_safe], nan).reshape(ny_t, nx_t).astype(float32)
+
+    b_q2, e_v10 = vm['Q2']['begin'], vm['V10']['begin'] + sz
+    b_rc, e_rnc = vm['RAINC']['begin'], vm['RAINNC']['begin'] + sz
+    off_t2, off_u10, off_v10 = vm['T2']['begin'] - b_q2, vm['U10']['begin'] - b_q2, vm['V10']['begin'] - b_q2
+    off_rsh, off_rnc         = vm['RAINSH']['begin'] - b_rc, vm['RAINNC']['begin'] - b_rc
+
+    def leer_paso(t):
+        off  = t * recsize
+        blk2 = fetch_range(url, b_rc + off, e_rnc - b_rc)
+        r_ac = frombuffer(blk2[:sz], dtype='>f4') + frombuffer(blk2[off_rsh:off_rsh + sz], dtype='>f4') + frombuffer(blk2[off_rnc:off_rnc + sz], dtype='>f4')
+        if t == 0:
+            return t, regrid(r_ac), None, None, None, None
+        blk1 = fetch_range(url, b_q2 + off, e_v10 - b_q2)
+        sw   = frombuffer(fetch_range(url, vm['SWDOWN']['begin'] + off, sz), dtype='>f4') * 3600.0
+        return (t, regrid(r_ac),
+                regrid(frombuffer(blk1[off_t2:off_t2 + sz], dtype='>f4')),
+                regrid(frombuffer(blk1[off_u10:off_u10 + sz], dtype='>f4')),
+                regrid(frombuffer(blk1[off_v10:off_v10 + sz], dtype='>f4')),
+                regrid(clip(sw, 0.0, None)))
+
+    n_out    = numrecs - 1
+    shape_o  = (n_out, ny_t, nx_t)
+    rain_all = zeros((numrecs, ny_t, nx_t), dtype=float32)
+    t2m_all  = zeros(shape_o, dtype=float32)
+    u10_all  = zeros(shape_o, dtype=float32)
+    v10_all  = zeros(shape_o, dtype=float32)
+    rad_all  = zeros(shape_o, dtype=float32)
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        for t, r_ac, t2, u10, v10, sw in pool.map(leer_paso, range(numrecs)):
+            rain_all[t] = r_ac
+            if t > 0:
+                t2m_all[t - 1] = t2
+                u10_all[t - 1] = u10
+                v10_all[t - 1] = v10
+                rad_all[t - 1] = sw
+
+    ppt_all = clip(diff(rain_all, axis=0), 0.0, None).astype(float32) / 1000.0
+    w10_all = hypot(u10_all, v10_all).astype(float32)
+    leads_td = [timedelta64(k, 'h') for k in range(1, numrecs)]
+    campos   = {
+        'total_precipitation_1hr_p10':              ppt_all,
+        'total_precipitation_1hr_p50':              ppt_all,
+        'total_precipitation_1hr_p90':              ppt_all,
+        'temperature_2m_p10':                       t2m_all,
+        'temperature_2m_p50':                       t2m_all,
+        'temperature_2m_p90':                       t2m_all,
+        'u_component_of_wind_10m_p50':              u10_all,
+        'v_component_of_wind_10m_p50':              v10_all,
+        'wind_speed_10m_p10':                       w10_all,
+        'wind_speed_10m_p50':                       w10_all,
+        'wind_speed_10m_p90':                       w10_all,
+        'surface_solar_radiation_downwards_1hr_p50': rad_all
+    }
+    init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
+    zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_01, lons_01 + 360.0, campos, cfg)
+    return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
 #%% EJECUCIÓN PRINCIPAL DEL WORKER MULTIMODELO
 if __name__ == '__main__':
     manifest = {'updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
@@ -778,6 +941,8 @@ if __name__ == '__main__':
                 info_m = procesar_mlwp_noaa(m_id, cfg)
             elif cfg.get('xweather_api'):
                 info_m = procesar_xweather(m_id, cfg)
+            elif cfg.get('ideam_wrf'):
+                info_m = procesar_ideam_wrf(m_id, cfg)
             manifest['models'][m_id] = info_m
             print(f'[✓ {m_id}] Empaquetado exitoso en {info_m["zip"]} ({info_m["steps"]} pasos).', flush=True)
         except Exception as e:
