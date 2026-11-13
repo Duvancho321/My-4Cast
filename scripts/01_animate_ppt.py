@@ -106,7 +106,7 @@ def animar_modelo_ppt(model_id, cfg, nivel='10m', ruta_viento=None, sello_viento
     valid_ini_ts = init_ts + ds.lead_time.values[0]
     valid_ini_str = f"{str(valid_ini_ts)[:10]} {str(valid_ini_ts)[11:13]}h HL"
     titulo    = ax.set_title(f'Válido: {valid_ini_str} (+{lead_ini_h:02d}h)\nCorrida: {init_str} — {subtitulo}',
-                             loc='left', fontsize=8.2, fontweight='bold', linespacing=1.3)
+                             loc='left', fontsize=7.8, fontweight='bold', linespacing=1.3)
     ax.text(0.985, 0.02, cfg['sello_mapa'], transform=ax.transAxes,
             ha='right', va='bottom', multialignment='center', fontsize=7.5, color='#333333', linespacing=1.2,
             bbox=dict(boxstyle='square,pad=0.25', facecolor='white', alpha=0.75, edgecolor='none'))
