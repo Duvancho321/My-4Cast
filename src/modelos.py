@@ -356,7 +356,7 @@ modelos_colombia = {
         'paso_h': 1,
         'horizonte_h': 192,
         'salto_quiver': 8,
-        'salto_web': 3,
+        'salto_web': 4,
         'almacenamiento': 'efimero_visualizacion',
         'ruta_zarr': f'{DIR_BASE}/staging/models/ideam_wrf.zarr',
         'dir_anim': f'{DIR_BASE}/animations/IDEAM_WRF',

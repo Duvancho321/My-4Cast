@@ -549,9 +549,10 @@ def exportar_modelo_web(model_id, cfg):
         'lons': round(latest.lon_0p1.values[::salto_vec].astype(float) - 360.0, 2).tolist(),
         'u10': round(nan_to_num(latest['u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
         'v10': round(nan_to_num(latest['v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
-        'u100': round(nan_to_num(latest['u_component_of_wind_100m_p50' if 'u_component_of_wind_100m_p50' in latest else 'u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
-        'v100': round(nan_to_num(latest['v_component_of_wind_100m_p50' if 'v_component_of_wind_100m_p50' in latest else 'v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
     }
+    if 'u_component_of_wind_100m_p50' in latest and 'v_component_of_wind_100m_p50' in latest:
+        vec_data['u100'] = round(nan_to_num(latest['u_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+        vec_data['v100'] = round(nan_to_num(latest['v_component_of_wind_100m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
     for lev in ('850', '500'):
         if f'u_component_of_wind_{lev}hpa_p50' in latest and f'v_component_of_wind_{lev}hpa_p50' in latest:
             vec_data[f'u{lev}'] = round(nan_to_num(latest[f'u_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
