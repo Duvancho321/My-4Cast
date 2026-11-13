@@ -19,8 +19,8 @@ from os import system
 from pathlib import Path
 from os.path import exists
 from xarray import open_zarr
-from numpy import timedelta64
 from cartopy.crs import PlateCarree
+from numpy import abs, argmin, timedelta64
 from src.modelos import modelos_colombia
 from matplotlib.pyplot import close, figure
 from src.paletas import CMAP_PPT, NORM_PPT
@@ -28,8 +28,18 @@ from cartopy.feature import BORDERS, NaturalEarthFeature
 from src.animacion import agregar_logo, cuadro_desde_figura, escribir_mp4
 
 #%% FUNCIÓN DE RENDERIZADO POR MODELO
-def animar_modelo_ppt(model_id, cfg):
+def animar_modelo_ppt(model_id, cfg, nivel='10m', ruta_viento=None, sello_viento=''):
     if 'precipitacion' not in cfg['variables'] or not exists(cfg['ruta_zarr']):
+        return
+
+    ds           = open_zarr(cfg['ruta_zarr'])
+    ds_viento    = open_zarr(ruta_viento) if ruta_viento else ds
+    u_var        = f'u_component_of_wind_{nivel}_p50'
+    v_var        = f'v_component_of_wind_{nivel}_p50'
+    tiene_viento = (('viento' in cfg['variables'] or bool(ruta_viento))
+                    and u_var in ds_viento.data_vars
+                    and v_var in ds_viento.data_vars)
+    if nivel != '10m' and not tiene_viento:
         return
 
     salto     = cfg['salto_quiver']
@@ -39,23 +49,22 @@ def animar_modelo_ppt(model_id, cfg):
     Path(dir_anim).mkdir(parents=True, exist_ok=True)
     Path(dir_fig).mkdir(parents=True, exist_ok=True)
 
-    ruta_png  = f'{dir_fig}/{model_id}_piloto_ppt_viento_colombia.png'
-    ruta_mp4  = f'{dir_anim}/{model_id}_animacion_ppt_viento_master.mp4'
-    ruta_wapp = f'{dir_anim}/{model_id}_animacion_ppt_viento.mp4'
+    suf       = '' if (nivel == '10m' and not ruta_viento) else (f'_{nivel}' if not sello_viento else f'_{nivel}_{sello_viento.lower()}')
+    ruta_png  = f'{dir_fig}/{model_id}_piloto_ppt_viento{suf}_colombia.png'
+    ruta_mp4  = f'{dir_anim}/{model_id}_animacion_ppt_viento{suf}_master.mp4'
+    ruta_wapp = f'{dir_anim}/{model_id}_animacion_ppt_viento{suf}.mp4'
 
-    ds           = open_zarr(cfg['ruta_zarr'])
-    lon_cor      = ds.lon_0p1.values - 360.0
-    lat_cor      = ds.lat_0p1.values
-    lon_q        = lon_cor[::salto]
-    lat_q        = lat_cor[::salto]
-    n_pasos      = len(ds.lead_time)
-    hora_fig     = min(12, n_pasos - 1)
-    tiene_viento = ('viento' in cfg['variables']
-                    and 'u_component_of_wind_10m_p50' in ds.data_vars
-                    and 'v_component_of_wind_10m_p50' in ds.data_vars)
-    init_ts      = ds.init_time.values[-1] - timedelta64(5, 'h')
-    init_str     = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
-    unidad_ppt   = 'PPT [mm/día]' if cfg['paso_h'] == 24 else 'PPT [mm/h]'
+    lon_cor   = ds.lon_0p1.values - 360.0
+    lat_cor   = ds.lat_0p1.values
+    lon_q     = (ds_viento.lon_0p1.values - 360.0)[::salto]
+    lat_q     = ds_viento.lat_0p1.values[::salto]
+    n_pasos   = len(ds.lead_time)
+    hora_fig  = min(12, n_pasos - 1)
+    init_utc  = ds.init_time.values[-1]
+    init_ts   = init_utc - timedelta64(5, 'h')
+    init_str  = f"{str(init_ts)[:10]} {str(init_ts)[11:13]}h HL"
+    unidad_ppt = 'PPT [mm/día]' if cfg['paso_h'] == 24 else 'PPT [mm/h]'
+    v_times   = ds_viento.init_time.values[-1] + ds_viento.lead_time.values if ruta_viento else None
 
     costas = NaturalEarthFeature(category='physical', name='coastline', scale='10m', facecolor='none')
     deptos = NaturalEarthFeature(category='cultural', name='admin_1_states_provinces_lines', scale='10m', facecolor='none')
@@ -79,16 +88,19 @@ def animar_modelo_ppt(model_id, cfg):
     im      = ax.pcolormesh(lon_cor, lat_cor, ppt_ini, cmap=CMAP_PPT, norm=NORM_PPT, transform=PlateCarree())
 
     if tiene_viento:
-        u_ini = ds['u_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=0).values[::salto, ::salto]
-        v_ini = ds['v_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=0).values[::salto, ::salto]
-        qv    = ax.quiver(lon_q, lat_q, u_ini, v_ini, transform=PlateCarree(),
-                          scale=200, width=0.0022, color='#1e293b', alpha=0.82,
-                          pivot='mid', headwidth=3.2, headlength=4.0)
+        idx_v0 = int(argmin(abs(v_times - (init_utc + ds.lead_time.values[0])))) if ruta_viento else 0
+        u_ini  = ds_viento[u_var].isel(init_time=-1, lead_time=idx_v0).values[::salto, ::salto]
+        v_ini  = ds_viento[v_var].isel(init_time=-1, lead_time=idx_v0).values[::salto, ::salto]
+        qv     = ax.quiver(lon_q, lat_q, u_ini, v_ini, transform=PlateCarree(),
+                           scale=200, width=0.0022, color='#1e293b', alpha=0.82,
+                           pivot='mid', headwidth=3.2, headlength=4.0)
         ax.quiverkey(qv, 0.12, 0.045, 10, '10 m/s', labelpos='E',
                      coordinates='axes', fontproperties={'size': 8, 'weight': 'bold'},
                      facecolor='white', edgecolor='none')
 
-    subtitulo = (f"{cfg['etiqueta_corta']} — PPT Diaria y Viento 10m" if cfg['paso_h'] == 24 else f"{cfg['etiqueta_corta']} — PPT y Viento 10m") if tiene_viento else \
+    nivel_txt = '10m' if nivel == '10m' else f'{nivel[:-3]} hPa'
+    fuente_v  = f' ({sello_viento})' if sello_viento else ''
+    subtitulo = (f"{cfg['etiqueta_corta']} — PPT Diaria y Viento {nivel_txt}{fuente_v}" if cfg['paso_h'] == 24 else f"{cfg['etiqueta_corta']} — PPT y Viento {nivel_txt}{fuente_v}") if tiene_viento else \
                 (f"{cfg['etiqueta_corta']} — Precipitación Diaria" if cfg['paso_h'] == 24 else f"{cfg['etiqueta_corta']} — Precipitación")
     lead_ini_h = int(ds.lead_time.values[0] / timedelta64(1, 'h'))
     valid_ini_ts = init_ts + ds.lead_time.values[0]
@@ -117,8 +129,9 @@ def animar_modelo_ppt(model_id, cfg):
             ppt_arr   = (ds['total_precipitation_1hr_p50'].isel(init_time=-1, lead_time=idx).values * 1000.0).ravel()
             im.set_array(ppt_arr)
             if tiene_viento:
-                u_arr = ds['u_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=idx).values[::salto, ::salto]
-                v_arr = ds['v_component_of_wind_10m_p50'].isel(init_time=-1, lead_time=idx).values[::salto, ::salto]
+                idx_v = int(argmin(abs(v_times - (init_utc + lead_val)))) if ruta_viento else idx
+                u_arr = ds_viento[u_var].isel(init_time=-1, lead_time=idx_v).values[::salto, ::salto]
+                v_arr = ds_viento[v_var].isel(init_time=-1, lead_time=idx_v).values[::salto, ::salto]
                 qv.set_UVC(u_arr, v_arr)
             titulo.set_text(f'Válido: {valid_str} (+{lead_h:02d}h)\nCorrida: {init_str} — {subtitulo}')
             if idx == hora_fig:
@@ -133,7 +146,11 @@ def animar_modelo_ppt(model_id, cfg):
 
 #%% EJECUCIÓN PRINCIPAL
 if __name__ == '__main__':
-    objetivo = argv[1] if len(argv) > 1 else 'wn3'
+    objetivo     = argv[1] if len(argv) > 1 else 'wn3'
+    niveles      = argv[2].split(',') if len(argv) > 2 else ['10m']
+    ruta_viento  = argv[3] if len(argv) > 3 else None
+    sello_viento = argv[4] if len(argv) > 4 else ''
     for m_id, cfg in modelos_colombia.items():
         if objetivo in ('all', m_id) or m_id in objetivo.split(','):
-            animar_modelo_ppt(m_id, cfg)
+            for niv in niveles:
+                animar_modelo_ppt(m_id, cfg, nivel=niv, ruta_viento=ruta_viento, sello_viento=sello_viento)
