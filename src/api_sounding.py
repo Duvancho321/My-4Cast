@@ -156,7 +156,7 @@ def extraer_sondeo_json(model_id, lat_r, lon_r):
     wdir = round((180 + rad2deg(arctan2(u, v))) % 360, 0).astype(int).tolist()
 
     rad_p50   = round(nan_to_num(pt['surface_solar_radiation_downwards_1hr_p50'].values.astype(float) / 3600.0, nan=0.0), 0).astype(int).tolist()
-    cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist()
+    cld_p50   = round(nan_to_num(pt['total_cloud_cover_p50'].values.astype(float) * 100.0, nan=50.0), 0).astype(int).tolist() if 'total_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
     cldl_p50  = round(nan_to_num(pt['low_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'low_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
     cldm_p50  = round(nan_to_num(pt['medium_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'medium_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
     cldh_p50  = round(nan_to_num(pt['high_cloud_cover_p50'].values.astype(float) * 100.0, nan=0.0), 0).astype(int).tolist() if 'high_cloud_cover_p50' in pt else ceros_pt.astype(int).tolist()
