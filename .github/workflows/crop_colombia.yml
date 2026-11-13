@@ -55,6 +55,7 @@ jobs:
         id: crop_colombia
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRIVATE_REPO_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
           INPUT_RUN_ID: ${{ github.event.inputs.run_id || 'auto' }}
         run: |
           python scripts/cloud_crop_colombia.py "$INPUT_RUN_ID"
@@ -67,15 +68,16 @@ jobs:
             echo "No hay nueva corrida para publicar."
           fi
 
-      - name: Publish to GitHub Release
+      - name: Publish to Private GitHub Release
         if: steps.crop_colombia.outputs.has_new_run == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
           RUN_TAG="colombia-wn3-latest"
           RUN_ID=$(python -c "import json; print(json.load(open('manifest.json'))['run_id'])" 2>/dev/null || echo "latest")
-          gh release delete "$RUN_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release delete "$RUN_TAG" --repo Duvancho321/My-4Cast-Private --yes --cleanup-tag 2>/dev/null || true
           gh release create "$RUN_TAG" colombia_part_* manifest.json \
+            --repo Duvancho321/My-4Cast-Private \
             --title "WeatherNext 3 Colombia - $RUN_ID" \
-            --notes "Recorte automatico para Colombia: corrida $RUN_ID con 17 variables fisicas seleccionadas (incluye station heads 5 km)." \
+            --notes "Recorte automatico privado para Colombia: corrida $RUN_ID con 17 variables fisicas seleccionadas (incluye station heads 5 km)." \
             --latest

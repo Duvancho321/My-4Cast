@@ -82,9 +82,9 @@ if __name__ == '__main__':
 
     # Comprobación de idempotencia: Si ya está publicada en colombia-wn3-latest, salir
     if len(argv) <= 1 or argv[1] == 'auto':
-        gh_tok  = getenv('GITHUB_TOKEN')
+        gh_tok  = getenv('PRIVATE_REPO_TOKEN') or getenv('GITHUB_TOKEN')
         hdrs_gh = {'Authorization': f'token {gh_tok}'} if gh_tok else {'User-Agent': 'My-4Cast'}
-        url_chk = 'https://api.github.com/repos/Duvancho321/My-4Cast/releases/tags/colombia-wn3-latest'
+        url_chk = 'https://api.github.com/repos/Duvancho321/My-4Cast-Private/releases/tags/colombia-wn3-latest'
         try:
             req_chk = Request(url_chk, headers=hdrs_gh)
             with urlopen(req_chk) as resp_c:
