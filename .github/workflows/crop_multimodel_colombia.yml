@@ -33,6 +33,7 @@ jobs:
           - aurora_gfs
           - fourcastnet_gfs
           - pangu_gfs
+          - xweather
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,8 +63,18 @@ jobs:
         env:
           INPUT_MODELS: ${{ github.event.inputs.models || 'all' }}
           MODEL_NAME: ${{ matrix.model }}
+          XWEATHER_CLIENT_ID: ${{ secrets.XWEATHER_CLIENT_ID }}
+          XWEATHER_CLIENT_SECRET: ${{ secrets.XWEATHER_CLIENT_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           FILTER="$INPUT_MODELS"
+          if [ "$MODEL_NAME" = "xweather" ] && [ "$EVENT_NAME" = "schedule" ]; then
+            UTC_H=$((10#$(date -u +%H)))
+            if [ $((UTC_H % 12)) -ne 0 ]; then
+              echo "Skipping xweather on non-12h schedule ($UTC_H UTC) to conserve API quota."
+              exit 0
+            fi
+          fi
           if [ "$FILTER" = "all" ] || echo ",$FILTER," | grep -q ",${MODEL_NAME},"; then
             python scripts/cloud_crop_multimodel.py "$MODEL_NAME"
             mv models_manifest.json "manifest_${MODEL_NAME}.json" || true

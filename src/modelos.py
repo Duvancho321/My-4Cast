@@ -3,11 +3,12 @@ modelos.py — Registro centralizado de modelos de pronóstico y política de al
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.2.4"
+__version__: "0.2.5"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-13][Duvan]: Inclusión de Vaisala Xweather Forecast (360h, 1h) vía API en GitHub Actions.
     - [2026-11-08][Duvan]: Resolucion dual 0.05°/0.1° en metadatos de WeatherNext 3.
     - [2026-11-07][Duvan]: Unificar licencia CC0 para Aurora y Pangu en NOAA MLWP.
     - [2026-11-06][Duvan]: Catálogo de licencias e instituciones para modal de créditos.
@@ -317,5 +318,27 @@ modelos_colombia = {
         'dir_anim': f'{DIR_BASE}/animations/PANGU_GFS',
         'dir_fig': f'{DIR_BASE}/figures/PANGU_GFS',
         'variables': ['temperatura', 'viento']
+    },
+    'xweather': {
+        'id': 'xweather',
+        'carpeta': 'VAISALA_XWEATHER',
+        'nombre': 'Vaisala Xweather Forecast',
+        'institucion': 'Vaisala Xweather',
+        'familia': 'fisico',
+        'licencia': 'Powered by Vaisala Xweather (Xweather Developer Terms)',
+        'etiqueta_corta': 'Xweather · Vaisala Blended (15d)',
+        'etiqueta_fuente': 'Xweather · Vaisala (Pronóstico calibrado)',
+        'sello_mapa': 'Vaisala Xweather\nPronóstico Calibrado (15d)',
+        'tipo': 'Híbrido NWP / Calibrado',
+        'resolucion': '1.5° malla / 0.25° interp.',
+        'paso_h': 1,
+        'horizonte_h': 360,
+        'salto_quiver': 4,
+        'salto_web': 3,
+        'almacenamiento': 'efimero_visualizacion',
+        'ruta_zarr': f'{DIR_BASE}/staging/models/xweather.zarr',
+        'dir_anim': f'{DIR_BASE}/animations/VAISALA_XWEATHER',
+        'dir_fig': f'{DIR_BASE}/figures/VAISALA_XWEATHER',
+        'variables': ['precipitacion', 'temperatura', 'viento', 'viento_100m', 'radiacion', 'nubosidad_total']
     }
 }

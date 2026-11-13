@@ -3,17 +3,20 @@ cloud_crop_multimodel.py — Recorte efímero en la nube de 11 modelos abiertos 
 
 __author__: "Duvan Nieves"
 __copyright__: "Duvan Nieves Ruiz"
-__version__: "0.3.1"
+__version__: "0.3.2"
 __maintaner__: "Duvan Nieves Ruiz"
 __email__: "dnieves.sci@gmail.com"
 __status__: "Developer"
 __changues__:
+    - [2026-11-13][Duvan]: Integración de Vaisala Xweather Forecast (360h, malla Colombia) vía API.
     - [2026-11-10][Duvan]: Fallback sin token a gs://ecmwf-open-data (0.1°) para HRES.
     - [2026-11-06][Duvan]: Integración de ECMWF IFS HRES (0.1°) vía Arraylake / Icechunk v2.
     - [2026-11-05][Duvan]: Inclusión de Aurora, FourCastNet v2, GraphCast y Pangu-Weather con concurrencia en ICON y CHIRPS-GEFS.
 """
 
+from os import getenv
 from sys import argv
+from time import sleep
 from json import dump, loads
 from h5py import File
 from bz2 import decompress
@@ -28,7 +31,7 @@ from icechunk import Repository, s3_storage
 from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
-from numpy import arange, array, clip, column_stack, diff, flipud, float32, hypot, isnan, meshgrid, nan_to_num, nanpercentile, timedelta64, where, zeros
+from numpy import arange, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, hypot, isnan, linspace, meshgrid, nan_to_num, nanpercentile, sin, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
 lat_min = -5.0
@@ -151,6 +154,16 @@ catalogo_modelos = {
         'paso_h': 6,
         'horizonte_h': 240,
         'mlwp_code': 'PANG_v100_GFS',
+        'ensamble': False
+    },
+    'xweather': {
+        'nombre': 'Vaisala Xweather Forecast (Calibrado)',
+        'organizacion': 'Vaisala Xweather',
+        'tipo': 'Híbrido NWP / Calibrado',
+        'resolucion': '1.5° malla / 0.25° interp.',
+        'paso_h': 1,
+        'horizonte_h': 360,
+        'xweather_api': True,
         'ensamble': False
     }
 }
@@ -638,6 +651,114 @@ def procesar_mlwp_noaa(model_id, cfg):
     zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
+#%% RECORTE DE VAISALA XWEATHER FORECAST API (11x13 MALLA -> INTERP 0.25°, 360H)
+def procesar_xweather(model_id, cfg):
+    cid = getenv('XWEATHER_CLIENT_ID', '')
+    sec = getenv('XWEATHER_CLIENT_SECRET', '')
+    if not cid or not sec:
+        raise RuntimeError('Credenciales XWEATHER_CLIENT_ID / XWEATHER_CLIENT_SECRET no configuradas.')
+
+    lats_c = linspace(lat_min, lat_max, 11)
+    lons_c = linspace(lon_min, lon_max, 13)
+    fields = 'periods.timestamp,periods.tempC,periods.precipMM,periods.windSpeedMPS,periods.windDirDEG,periods.windSpeed80mMPS,periods.windDir80mDEG,periods.solradWM2,periods.sky'
+
+    print(f'\n[{model_id}] Consultando malla {len(lats_c)}x{len(lons_c)} (143 pts, 360h) en Vaisala Xweather...', flush=True)
+    malla_raw = {}
+    for i, la in enumerate(lats_c):
+        for j, lo in enumerate(lons_c):
+            url = f'https://data.api.xweather.com/forecasts/{la:.3f},{lo:.3f}?filter=1hr&limit=360&fields={fields}&client_id={cid}&client_secret={sec}'
+            for intento in range(3):
+                try:
+                    with urlopen(Request(url), timeout=15) as r:
+                        body = loads(r.read().decode())
+                    if body.get('success') and body.get('response'):
+                        malla_raw[(i, j)] = body['response'][0].get('periods', [])
+                        break
+                except Exception:
+                    sleep(2.0 * (intento + 1))
+            sleep(0.68)
+
+    if len(malla_raw) < 100:
+        raise RuntimeError(f'Respuestas insuficientes de Xweather: {len(malla_raw)}/143 puntos.')
+
+    n_pasos  = min(len(p) for p in malla_raw.values() if p)
+    primer_p = next(p for p in malla_raw.values() if p)[0]
+    init_dt  = datetime.fromtimestamp(primer_p['timestamp'] - 3600, tz=timezone.utc).replace(minute=0, second=0, microsecond=0)
+    init_iso = init_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    shape_c  = (n_pasos, len(lats_c), len(lons_c))
+    raw_t2m  = zeros(shape_c, dtype=float32)
+    raw_ppt  = zeros(shape_c, dtype=float32)
+    raw_u10  = zeros(shape_c, dtype=float32)
+    raw_v10  = zeros(shape_c, dtype=float32)
+    raw_u80  = zeros(shape_c, dtype=float32)
+    raw_v80  = zeros(shape_c, dtype=float32)
+    raw_rad  = zeros(shape_c, dtype=float32)
+    raw_cld  = zeros(shape_c, dtype=float32)
+
+    for (i, j), periods in malla_raw.items():
+        for k in range(n_pasos):
+            p = periods[k]
+            raw_t2m[k, i, j] = (p.get('tempC') or 20.0) + 273.15
+            raw_ppt[k, i, j] = max(0.0, float(p.get('precipMM') or 0.0)) / 1000.0
+            w10 = float(p.get('windSpeedMPS') or 0.0)
+            d10 = deg2rad(float(p.get('windDirDEG') or 0.0))
+            raw_u10[k, i, j] = -w10 * sin(d10)
+            raw_v10[k, i, j] = -w10 * cos(d10)
+            w80 = float(p.get('windSpeed80mMPS') or w10)
+            d80 = deg2rad(float(p.get('windDir80mDEG') or p.get('windDirDEG') or 0.0))
+            raw_u80[k, i, j] = -w80 * sin(d80)
+            raw_v80[k, i, j] = -w80 * cos(d80)
+            raw_rad[k, i, j] = max(0.0, float(p.get('solradWM2') or 0.0)) * 3600.0
+            raw_cld[k, i, j] = clip(float(p.get('sky') or 0.0) / 100.0, 0.0, 1.0)
+
+    coords_c = {'lead': arange(n_pasos), 'lat_0p1': lats_c, 'lon_0p1': lons_c}
+    dims_c   = ('lead', 'lat_0p1', 'lon_0p1')
+    ds_c     = Dataset({
+        't2m': (dims_c, raw_t2m), 'ppt': (dims_c, raw_ppt),
+        'u10': (dims_c, raw_u10), 'v10': (dims_c, raw_v10),
+        'u80': (dims_c, raw_u80), 'v80': (dims_c, raw_v80),
+        'rad': (dims_c, raw_rad), 'cld': (dims_c, raw_cld)
+    }, coords=coords_c)
+
+    lats_025 = arange(lat_min, lat_max + 0.01, 0.25, dtype=float32)
+    lons_025 = arange(lon_min, lon_max + 0.01, 0.25, dtype=float32)
+    ds_i     = ds_c.interp(lat_0p1=lats_025, lon_0p1=lons_025, method='linear')
+
+    u10_i  = nan_to_num(ds_i['u10'].values, nan=0.0).astype(float32)
+    v10_i  = nan_to_num(ds_i['v10'].values, nan=0.0).astype(float32)
+    w10_i  = hypot(u10_i, v10_i).astype(float32)
+    u80_i  = nan_to_num(ds_i['u80'].values, nan=0.0).astype(float32)
+    v80_i  = nan_to_num(ds_i['v80'].values, nan=0.0).astype(float32)
+    w80_i  = hypot(u80_i, v80_i).astype(float32)
+    t2m_i  = nan_to_num(ds_i['t2m'].values, nan=293.15).astype(float32)
+    ppt_i  = nan_to_num(ds_i['ppt'].values, nan=0.0).astype(float32)
+    rad_i  = nan_to_num(ds_i['rad'].values, nan=0.0).astype(float32)
+    cld_i  = nan_to_num(ds_i['cld'].values, nan=0.0).astype(float32)
+
+    leads_td = [timedelta64(k + 1, 'h') for k in range(n_pasos)]
+    campos   = {
+        'total_precipitation_1hr_p10':              ppt_i,
+        'total_precipitation_1hr_p50':              ppt_i,
+        'total_precipitation_1hr_p90':              ppt_i,
+        'temperature_2m_p10':                       t2m_i,
+        'temperature_2m_p50':                       t2m_i,
+        'temperature_2m_p90':                       t2m_i,
+        'u_component_of_wind_10m_p50':              u10_i,
+        'v_component_of_wind_10m_p50':              v10_i,
+        'wind_speed_10m_p10':                       w10_i,
+        'wind_speed_10m_p50':                       w10_i,
+        'wind_speed_10m_p90':                       w10_i,
+        'u_component_of_wind_100m_p50':             u80_i,
+        'v_component_of_wind_100m_p50':             v80_i,
+        'wind_speed_100m_p50':                      w80_i,
+        'surface_solar_radiation_downwards_1hr_p50': rad_i,
+        'total_cloud_cover_p50':                    cld_i
+    }
+    init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
+    zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_025, lons_025 + 360.0, campos, cfg)
+    return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
+
 #%% EJECUCIÓN PRINCIPAL DEL WORKER MULTIMODELO
 if __name__ == '__main__':
     manifest = {'updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'models': {}}
@@ -655,6 +776,8 @@ if __name__ == '__main__':
                 info_m = procesar_dwd_icon(m_id, cfg)
             elif 'mlwp_code' in cfg:
                 info_m = procesar_mlwp_noaa(m_id, cfg)
+            elif cfg.get('xweather_api'):
+                info_m = procesar_xweather(m_id, cfg)
             manifest['models'][m_id] = info_m
             print(f'[✓ {m_id}] Empaquetado exitoso en {info_m["zip"]} ({info_m["steps"]} pasos).', flush=True)
         except Exception as e:
