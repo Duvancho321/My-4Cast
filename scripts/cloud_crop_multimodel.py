@@ -34,7 +34,7 @@ from icechunk import Repository, s3_storage
 from xarray import DataArray, Dataset, open_zarr
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
-from numpy import arange, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, frombuffer, hypot, isnan, linspace, meshgrid, nan, nan_to_num, nanpercentile, sin, timedelta64, where, zeros
+from numpy import arange, argmax, array, clip, column_stack, cos, deg2rad, diff, flipud, float32, frombuffer, hypot, isnan, linspace, meshgrid, nan, nan_to_num, nanpercentile, sin, take_along_axis, timedelta64, where, zeros
 
 #%% CONFIGURACIÓN DE DOMINIO Y CATÁLOGO MULTIMODELO
 lat_min = -5.0
@@ -846,13 +846,17 @@ def procesar_ideam_wrf(model_id, cfg):
         return p
 
     tag, pos = rd_u32(hdr, pos)
+    dims     = []
     if tag == 10:
         ndims, pos = rd_u32(hdr, pos)
         for _ in range(ndims):
-            _, pos = rd_str(hdr, pos)
-            _, pos = rd_u32(hdr, pos)
+            dn, pos = rd_str(hdr, pos)
+            dl, pos = rd_u32(hdr, pos)
+            dims.append((dn, dl))
     else:
         pos += 4
+    d_map      = dict(dims)
+    ny_w, nx_w = d_map['south_north'], d_map['west_east']
     pos        = skip_attrs(hdr, pos)
     tag, pos   = rd_u32(hdr, pos)
     nvars, pos = rd_u32(hdr, pos)
@@ -892,20 +896,42 @@ def procesar_ideam_wrf(model_id, cfg):
     b_rc, e_rnc              = vm['RAINC']['begin'], vm['RAINNC']['begin'] + sz
     off_t2, off_u10, off_v10 = vm['T2']['begin'] - b_q2, vm['U10']['begin'] - b_q2, vm['V10']['begin'] - b_q2
     off_rsh, off_rnc         = vm['RAINSH']['begin'] - b_rc, vm['RAINNC']['begin'] - b_rc
+    nk_pl                    = 19
+    sz_u, sz_v, sz_p         = nk_pl * ny_w * (nx_w + 1) * 4, nk_pl * (ny_w + 1) * nx_w * 4, nk_pl * ny_w * nx_w * 4
+    pb_pl                    = frombuffer(fetch_range(f'{url_base}{archivos[0]}', vm['PB']['begin'], sz_p), dtype='>f4').reshape((nk_pl, ny_w, nx_w))
+
+    def interp_pl(p_pa, arr_3d, p_obj):
+        k_hi  = argmax(p_pa <= p_obj, axis=0)
+        k_lo  = clip(k_hi - 1, 0, nk_pl - 2)
+        p_lo  = take_along_axis(p_pa, k_lo[None], 0)[0]
+        p_hi  = take_along_axis(p_pa, k_hi[None], 0)[0]
+        w     = (p_obj - p_lo) / where(p_hi != p_lo, p_hi - p_lo, 1.0)
+        val   = (1.0 - w) * take_along_axis(arr_3d, k_lo[None], 0)[0] + w * take_along_axis(arr_3d, k_hi[None], 0)[0]
+        valid_p = (p_pa[0] >= p_obj) & (p_pa[-1] <= p_obj) & (k_hi > 0)
+        return where(valid_p, val, nan).ravel()
 
     def leer_paso(t):
         u_f  = f'{url_base}{archivos[t]}'
         blk2 = fetch_range(u_f, b_rc, e_rnc - b_rc)
         r_ac = frombuffer(blk2[:sz], dtype='>f4') + frombuffer(blk2[off_rsh:off_rsh + sz], dtype='>f4') + frombuffer(blk2[off_rnc:off_rnc + sz], dtype='>f4')
         if t == 0:
-            return t, regrid(r_ac), None, None, None, None
+            return (t, regrid(r_ac)) + (None,) * 8
         blk1 = fetch_range(u_f, b_q2, e_v10 - b_q2)
         sw   = frombuffer(fetch_range(u_f, vm['SWDOWN']['begin'], sz), dtype='>f4') * 3600.0
+        u_3d = frombuffer(fetch_range(u_f, vm['U']['begin'], sz_u), dtype='>f4').reshape((nk_pl, ny_w, nx_w + 1))
+        v_3d = frombuffer(fetch_range(u_f, vm['V']['begin'], sz_v), dtype='>f4').reshape((nk_pl, ny_w + 1, nx_w))
+        p_pa = pb_pl + frombuffer(fetch_range(u_f, vm['P']['begin'], sz_p), dtype='>f4').reshape((nk_pl, ny_w, nx_w))
+        u_c  = 0.5 * (u_3d[:, :, :-1] + u_3d[:, :, 1:])
+        v_c  = 0.5 * (v_3d[:, :-1, :] + v_3d[:, 1:, :])
         return (t, regrid(r_ac),
                 regrid(frombuffer(blk1[off_t2:off_t2 + sz], dtype='>f4')),
                 regrid(frombuffer(blk1[off_u10:off_u10 + sz], dtype='>f4')),
                 regrid(frombuffer(blk1[off_v10:off_v10 + sz], dtype='>f4')),
-                regrid(clip(sw, 0.0, None)))
+                regrid(clip(sw, 0.0, None)),
+                regrid(interp_pl(p_pa, u_c, 85000.0)),
+                regrid(interp_pl(p_pa, v_c, 85000.0)),
+                regrid(interp_pl(p_pa, u_c, 50000.0)),
+                regrid(interp_pl(p_pa, v_c, 50000.0)))
 
     n_out    = numrecs - 1
     shape_o  = (n_out, ny_t, nx_t)
@@ -914,15 +940,23 @@ def procesar_ideam_wrf(model_id, cfg):
     u10_all  = zeros(shape_o, dtype=float32)
     v10_all  = zeros(shape_o, dtype=float32)
     rad_all  = zeros(shape_o, dtype=float32)
+    u850_all = zeros(shape_o, dtype=float32)
+    v850_all = zeros(shape_o, dtype=float32)
+    u500_all = zeros(shape_o, dtype=float32)
+    v500_all = zeros(shape_o, dtype=float32)
 
     for t in range(numrecs):
-        _, r_ac, t2, u10, v10, sw = leer_paso(t)
+        _, r_ac, t2, u10, v10, sw, u85, v85, u50, v50 = leer_paso(t)
         rain_all[t] = r_ac
         if t > 0:
-            t2m_all[t - 1] = t2
-            u10_all[t - 1] = u10
-            v10_all[t - 1] = v10
-            rad_all[t - 1] = sw
+            t2m_all[t - 1]  = t2
+            u10_all[t - 1]  = u10
+            v10_all[t - 1]  = v10
+            rad_all[t - 1]  = sw
+            u850_all[t - 1] = u85
+            v850_all[t - 1] = v85
+            u500_all[t - 1] = u50
+            v500_all[t - 1] = v50
         sleep(0.08)
 
     ppt_all = clip(diff(rain_all, axis=0), 0.0, None).astype(float32) / 1000.0
@@ -940,6 +974,10 @@ def procesar_ideam_wrf(model_id, cfg):
         'wind_speed_10m_p10':                       w10_all,
         'wind_speed_10m_p50':                       w10_all,
         'wind_speed_10m_p90':                       w10_all,
+        'u_component_of_wind_850hpa_p50':           u850_all,
+        'v_component_of_wind_850hpa_p50':           v850_all,
+        'u_component_of_wind_500hpa_p50':           u500_all,
+        'v_component_of_wind_500hpa_p50':           v500_all,
         'surface_solar_radiation_downwards_1hr_p50': rad_all
     }
     init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
