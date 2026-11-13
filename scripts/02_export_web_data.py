@@ -552,6 +552,10 @@ def exportar_modelo_web(model_id, cfg):
         'u100': round(nan_to_num(latest['u_component_of_wind_100m_p50' if 'u_component_of_wind_100m_p50' in latest else 'u_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist(),
         'v100': round(nan_to_num(latest['v_component_of_wind_100m_p50' if 'v_component_of_wind_100m_p50' in latest else 'v_component_of_wind_10m_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
     }
+    for lev in ('850', '500'):
+        if f'u_component_of_wind_{lev}hpa_p50' in latest and f'v_component_of_wind_{lev}hpa_p50' in latest:
+            vec_data[f'u{lev}'] = round(nan_to_num(latest[f'u_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
+            vec_data[f'v{lev}'] = round(nan_to_num(latest[f'v_component_of_wind_{lev}hpa_p50'].values[:, ::salto_vec, ::salto_vec].astype(float), nan=0.0), 1).tolist()
     with open(ruta_viento, 'w', encoding='utf-8') as fv:
         dump(vec_data, fv, separators=(',', ':'))
 

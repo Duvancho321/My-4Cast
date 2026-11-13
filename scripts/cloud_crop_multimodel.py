@@ -381,6 +381,18 @@ def procesar_ecmwf_ifs_hres(model_id, cfg):
                     out_h[v] = parse_grib_array(buf, 0).reshape((1801, 3600))[735:951, 950:1201][::-1, :].astype(float32)
                 else:
                     out_h[v] = zeros((216, 251), dtype=float32)
+            try:
+                p_pl   = f'{pref_run}-{h}h-oper-fc-pl'
+                pl_txt = bytes(obs_get(store, f'{p_pl}.index').bytes()).decode()
+                for l in pl_txt.splitlines():
+                    if not l.strip():
+                        continue
+                    d = loads(l)
+                    if d.get('param') in ('u', 'v') and d.get('levelist') in ('850', '500'):
+                        buf = bytes(obs_range(store, f'{p_pl}.grib2', start=d['_offset'], end=d['_offset'] + d['_length']))
+                        out_h[f"{d['param']}{d['levelist']}"] = parse_grib_array(buf, 0).reshape((1801, 3600))[735:951, 950:1201][::-1, :].astype(float32)
+            except Exception:
+                pass
             return out_h
 
         with ThreadPoolExecutor(max_workers=12) as pool:
@@ -390,7 +402,8 @@ def procesar_ecmwf_ifs_hres(model_id, cfg):
         lons_360 = (arange(lon_min, lon_max + 0.01, 0.1, dtype=float32)[:251] + 360.0).astype(float32)
         leads_td = array([timedelta64(h, 'h') for h in steps_h[1:]], dtype='timedelta64[ns]')
         step_h   = array(steps_h, dtype=float)
-        raw_map  = {v: array([p[v] for p in lista_pasos], dtype=float32) for v in req_vars}
+        pl_keys  = [k for k in ('u850', 'v850', 'u500', 'v500') if all(k in p for p in lista_pasos)]
+        raw_map  = {v: array([p[v] for p in lista_pasos], dtype=float32) for v in req_vars + pl_keys}
 
     diff_h = diff(step_h)
     t2m_k  = raw_map['2t'][1:]
@@ -430,6 +443,10 @@ def procesar_ecmwf_ifs_hres(model_id, cfg):
         'surface_solar_radiation_downwards_1hr_p50': ssrd_rate,
         'total_cloud_cover_p50':                    tcc
     }
+    for lev in ('850', '500'):
+        if f'u{lev}' in raw_map and f'v{lev}' in raw_map:
+            campos[f'u_component_of_wind_{lev}hpa_p50'] = raw_map[f'u{lev}'][1:]
+            campos[f'v_component_of_wind_{lev}hpa_p50'] = raw_map[f'v{lev}'][1:]
     zip_out = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': init_str, 'steps': len(leads_td), 'zip': zip_out, **cfg}
 
@@ -537,10 +554,11 @@ def procesar_dwd_icon(model_id, cfg):
     horas_paso = list(range(3, 181, 3))
     leads_td   = [timedelta64(h, 'h') for h in horas_paso]
 
-    def descargar_serie_icon(var_dir, var_mayus):
+    def descargar_serie_icon(var_dir, var_mayus, lev=None):
         def leer_hora(h):
-            u_g = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/{var_dir}/icon_global_icosahedral_single-level_{fecha_str}_{h:03d}_{var_mayus}.grib2.bz2'
-            raw = parse_grib_array(decompress(urlopen(u_g, timeout=25).read()), 0)
+            pref = f'pressure-level_{fecha_str}_{h:03d}_{lev}_{var_mayus}' if lev else f'single-level_{fecha_str}_{h:03d}_{var_mayus}'
+            u_g  = f'https://opendata.dwd.de/weather/nwp/icon/grib/{ciclo_sel}/{var_dir}/icon_global_icosahedral_{pref}.grib2.bz2'
+            raw  = parse_grib_array(decompress(urlopen(u_g, timeout=25).read()), 0)
             return raw[map_idx].reshape(shape_2d).astype(float32)
         with ThreadPoolExecutor(max_workers=12) as pool:
             serie = list(pool.map(leer_hora, horas_paso))
@@ -587,6 +605,12 @@ def procesar_dwd_icon(model_id, cfg):
         'surface_solar_radiation_downwards_1hr_p50': rad_ghi_s,
         'total_cloud_cover_p50':                    cld_frac
     }
+    for lev in (850, 500):
+        try:
+            campos[f'u_component_of_wind_{lev}hpa_p50'] = descargar_serie_icon('u', 'U', lev=lev)
+            campos[f'v_component_of_wind_{lev}hpa_p50'] = descargar_serie_icon('v', 'V', lev=lev)
+        except Exception:
+            pass
     init_iso  = f'{fecha_str[:4]}-{fecha_str[4:6]}-{fecha_str[6:8]}T{ciclo_sel}:00:00'
     init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
     zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
@@ -626,6 +650,14 @@ def procesar_mlwp_noaa(model_id, cfg):
             apcp_raw = hf['apcp'][1:, 294:381, 1100:1201] if 'apcp' in hf else None
             u100_raw = hf['u100'][1:, 294:381, 1100:1201] if 'u100' in hf else None
             v100_raw = hf['v100'][1:, 294:381, 1100:1201] if 'v100' in hf else None
+            levs     = list(hf['level'][:]) if 'level' in hf else []
+            pl_raw   = {}
+            if 'u' in hf and 'v' in hf:
+                for lev in (850, 500):
+                    if lev in levs:
+                        il = levs.index(lev)
+                        pl_raw[f'u{lev}'] = hf['u'][1:, il, 294:381, 1100:1201]
+                        pl_raw[f'v{lev}'] = hf['v'][1:, il, 294:381, 1100:1201]
 
     lats_asc = lats_raw[::-1].astype(float32)
     lons_360 = lons_raw.astype(float32)
@@ -660,6 +692,8 @@ def procesar_mlwp_noaa(model_id, cfg):
         'surface_solar_radiation_downwards_1hr_p50': ceros,
         'total_cloud_cover_p50':                    ceros
     }
+    for k, arr_pl in pl_raw.items():
+        campos[f'{k[0]}_component_of_wind_{k[1:]}hpa_p50'] = nan_to_num(arr_pl[:, ::-1, :], nan=0.0).astype(float32)
     init_dt64 = array([init_iso], dtype='datetime64[ns]')[0]
     zip_out   = guardar_zarr_estandar(model_id, init_dt64, leads_td, lats_asc, lons_360, campos, cfg)
     return {'model_id': model_id, 'init_time': init_iso, 'steps': len(leads_td), 'zip': zip_out, **cfg}
